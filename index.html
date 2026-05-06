@@ -177,7 +177,8 @@ input[readonly]{opacity:.6}
   <!-- 로그인 -->
   <div class="card">
     <div class="card-title">로그인</div>
-    <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">임직원 (CAPA 조회용)</div>
+    <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px">임직원 (CAPA 조회용)</div>
+    <p class="hint" style="margin-bottom:8px">파트너포털 임직원 계정 정보를 입력하세요.</p>
     <div class="login-row">
       <div class="field"><label>이메일</label><input id="empEmail" type="email" placeholder="seahui.jang@kurlycorp.com"/></div>
       <button class="btn btn-primary" id="empLoginBtn" onclick="doEmpLogin()">로그인</button>
@@ -185,7 +186,8 @@ input[readonly]{opacity:.6}
     <div class="auth-card emp" id="empCard"><div class="avatar emp" id="empAvatar">?</div><div><p style="font-size:13px;color:var(--green);font-weight:500" id="empName">-</p><span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace" id="empCode">-</span></div></div>
 
     <div class="divider"></div>
-    <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:8px">RMS (CAPA 등록용)</div>
+    <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:4px">RMS (CAPA 등록용)</div>
+    <p class="hint" style="margin-bottom:8px">RMS 계정 정보를 입력하세요.</p>
     <div class="login-row">
       <div class="field"><label>ID</label><input id="rmsId" type="text" value="seahui.jang1"/></div>
       <div class="field"><label>비밀번호</label><input id="rmsPw" type="password" value="tpgldia12!"/></div>
@@ -235,6 +237,7 @@ input[readonly]{opacity:.6}
   <!-- V2 임직원 로그인 -->
   <div class="card">
     <div class="card-title"><span class="num">1</span>임직원 로그인</div>
+    <p class="hint" style="margin-bottom:10px">발주자의 이메일 정보를 입력해주세요.</p>
     <div class="login-row">
       <div class="field"><label>이메일</label><input id="v2empEmail" type="email" placeholder="seahui.jang@kurlycorp.com"/></div>
       <button class="btn btn-primary" id="v2empLoginBtn" onclick="v2EmpLogin()">로그인</button>
@@ -245,6 +248,7 @@ input[readonly]{opacity:.6}
   <!-- 발주 설정 -->
   <div class="card">
     <div class="card-title"><span class="num">2</span>상품 조회 & 선택</div>
+    <p class="hint" style="margin-bottom:10px">발주할 상품의 공급사명이나 상품명을 검색해주세요.</p>
     <div class="grid2" style="margin-bottom:14px">
       <div class="field"><label>공급사명</label><input id="searchSupplier" type="text" placeholder="공급사명"/></div>
       <div class="field"><label>상품명</label><input id="searchGoods" type="text" placeholder="상품명"/></div>
@@ -256,6 +260,7 @@ input[readonly]{opacity:.6}
   <!-- 발주 옵션 (상품 선택 후 표시) -->
   <div class="card" id="orderOptionsCard" style="display:none">
     <div class="card-title"><span class="num">3</span>발주 옵션</div>
+    <p class="hint" style="margin-bottom:10px">발주 정보를 선택하여 입력해주세요. 선택된 입고지만 발주 처리됩니다.</p>
     <div class="grid3" style="margin-bottom:14px">
       <div class="field"><label>발주유형</label><select id="poType" onchange="onPoType()"><option value="NORMAL">NORMAL</option><option value="EMERGENCY">EMERGENCY</option></select></div>
       <div class="field"><label>입고예정일</label><input id="recvDate" type="date"/></div>
@@ -279,6 +284,7 @@ input[readonly]{opacity:.6}
   <!-- 공급사 로그인 (상품 선택 후 표시) -->
   <div class="card" id="supLoginCard" style="display:none">
     <div class="card-title"><span class="num">4</span>공급사 로그인</div>
+    <p class="hint" style="margin-bottom:10px">선택한 상품의 공급사 계정 정보를 입력해주세요. 해당 공급사의 발주 건만 확정 후 명세서 생성 처리됩니다.</p>
     <div class="login-row">
       <div class="field"><label>ID</label><input id="supLoginId" type="text" value="vd5783.02"/></div>
       <div class="field"><label>비밀번호</label><input id="supPassword" type="password" value="1234"/></div>
@@ -313,6 +319,7 @@ input[readonly]{opacity:.6}
   <!-- V1 임직원 로그인 -->
   <div class="card">
     <div class="card-title"><span class="num">1</span>임직원 로그인</div>
+    <p class="hint" style="margin-bottom:10px">발주자의 이메일 정보를 입력해주세요.</p>
     <div class="login-row">
       <div class="field"><label>이메일</label><input id="v1empEmail" type="email" placeholder="seahui.jang@kurlycorp.com"/></div>
       <button class="btn btn-primary" id="v1empLoginBtn" onclick="v1EmpLogin()">토큰 발급</button>
@@ -323,6 +330,7 @@ input[readonly]{opacity:.6}
   <!-- V1 상품 조회 -->
   <div class="card">
     <div class="card-title"><span class="num">2</span>상품 조회 & 선택</div>
+    <p class="hint" style="margin-bottom:10px">발주할 상품의 공급사명이나 상품명을 검색해주세요.</p>
     <div class="grid2" style="margin-bottom:14px">
       <div class="field"><label>상품 검색어</label><input id="v1searchWord" type="text" value="세희"/></div>
       <div class="field"><label>공급사명</label><input id="v1searchSupplier" type="text" placeholder="공급사명"/></div>
@@ -334,6 +342,7 @@ input[readonly]{opacity:.6}
   <!-- V1 발주 설정 (상품 선택 후 표시) -->
   <div class="card" id="v1optionsCard" style="display:none">
     <div class="card-title"><span class="num">3</span>발주그룹 설정</div>
+    <p class="hint" style="margin-bottom:10px">발주 정보를 선택하여 입력해주세요. 선택된 입고지만 발주 처리됩니다.</p>
     <div class="grid3" style="margin-bottom:14px">
       <div class="field"><label>발주그룹명</label><input id="v1groupName" type="text" value="세희발주테스트"/></div>
       <div class="field"><label>입고예정일</label><input id="v1recvDate" type="date"/><p class="hint">기본: 오늘 +1일</p></div>
@@ -357,6 +366,7 @@ input[readonly]{opacity:.6}
   <!-- V1 공급사 로그인 (상품 선택 후 표시) -->
   <div class="card" id="v1supLoginCard" style="display:none">
     <div class="card-title"><span class="num">4</span>공급사 로그인</div>
+    <p class="hint" style="margin-bottom:10px">선택한 상품의 공급사 계정 정보를 입력해주세요. 해당 공급사의 발주 건만 확정 처리됩니다.</p>
     <div class="grid2">
       <div class="field"><label>ID</label><input id="v1supLoginId" type="text" value="vd5783.02"/></div>
       <div class="field"><label>비밀번호</label><input id="v1supPassword" type="password" value="1234"/></div>
@@ -576,7 +586,8 @@ function renderCapaRegForms(missingKeys){
   html+='<div class="reg-sub">입고가능 Unit <span style="font-weight:400;color:var(--text3)">(해당 요일 자동 채움)</span></div><div class="day-grid">';
   dayLabels.forEach(function(l){html+='<label>'+l+'</label>'});
   od.forEach(function(d){html+='<input type="number" id="cb_'+d+'u" value="'+(targetDays[d]?9999999:0)+'"/>'});html+='</div>';
-  html+='<button class="btn btn-amber btn-full" style="margin-top:10px" onclick="regBulkCapa()">선택한 입고지 일괄 등록</button></div>';
+  html+='<button class="btn btn-amber btn-full" style="margin-top:10px" onclick="regBulkCapa()">선택한 입고지 일괄 등록</button>';
+  html+='<p style="font-size:11px;color:var(--text3);margin-top:8px;text-align:center">등록 후 CAPA 재조회 부탁드립니다.</p></div>';
   $("capaRegArea").innerHTML=html;
   // 택배 기본값이면 시간 고정
   if(defShip==="PARCEL") onCbRgChange()}
