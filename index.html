@@ -558,7 +558,7 @@ function renderCapaRegForms(missingKeys){
   html+='<div class="field"><label>종료시간</label><select id="cb_et">'+timeEndOpts()+'</select></div></div>';
   html+='<p class="hint">※ 택배 선택 시 등록 시간은 자동으로 00:00~23:29 고정됩니다</p>';
 
-  html+='<div class="grid3" style="margin-bottom:10px"><div class="field"><label>판매주체</label><select id="cb_pt"><option value="1P">1P</option><option value="FBK">FBK</option><option value="1P+FBK">1P+FBK</option></select></div>';
+  html+='<div class="grid3" style="margin-bottom:10px"><div class="field"><label>판매주체</label><select id="cb_pt"><option value="1P">1P+FBK</option><option value="3PL">3PL</option></select></div>';
   html+='<div class="field"><label>입고방법</label><select id="cb_rg" onchange="onCbRgChange()"><option value="CAR"'+(defShip==="CAR"?" selected":"")+'>차량</option><option value="PARCEL"'+(defShip==="PARCEL"?" selected":"")+'>택배</option></select></div>';
   html+='<div class="field"><label>입고대행</label><select id="cb_xd"><option value="N"'+(defXd==="N"?" selected":"")+'>N</option><option value="Y"'+(defXd==="Y"?" selected":"")+'>Y</option></select></div></div>';
 
