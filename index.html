@@ -197,11 +197,15 @@ input[readonly]{opacity:.6}
   <!-- CAPA 조회 -->
   <div class="card" id="capaQueryCard" style="display:none">
     <div class="card-title">CAPA 조회 (daily-capa)</div>
-    <div class="grid4" style="margin-bottom:14px">
+    <div class="grid4" style="margin-bottom:10px">
       <div class="field"><label>시작일</label><input id="capaDateFrom" type="date"/></div>
       <div class="field"><label>종료일</label><input id="capaDateTo" type="date"/></div>
       <div class="field"><label>출고방법</label><select id="capaShipFilter"><option value="">전체</option><option value="CAR">차량</option><option value="PARCEL">택배</option></select></div>
       <div class="field"><label>입고대행</label><select id="capaWpFilter"><option value="">전체</option><option value="false">N</option><option value="true">Y</option></select></div>
+    </div>
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="field"><label>입고지 (FC)</label><input id="capaFcFilter" type="text" placeholder="예: GGM1 (빈칸=전체)"/></div>
+      <div class="field"><label>입고지상세 (Dock)</label><input id="capaDockFilter" type="text" placeholder="예: GGM1_L (빈칸=전체)"/></div>
     </div>
     <button class="btn btn-primary btn-full" onclick="checkCapa()" id="capaCheckBtn">CAPA 조회</button>
     <div id="capaResults" style="margin-top:14px"></div>
@@ -469,8 +473,12 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
   var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];slog("✓ "+capas.length+"건","ok");
   var byDate={};capas.forEach(function(c){var d=c.scheduledReceivingDate;if(!byDate[d])byDate[d]={};var k=c.fulfillmentCenter+"|"+c.dock;if(!byDate[d][k])byDate[d][k]={fc:c.fulfillmentCenter,dock:c.dock,slots:[]};byDate[d][k].slots.push(c)});
   var selFcDocks=[];selectedCenters.forEach(function(cc){var docks=docksByCenterRaw[cc]||[];var sd=selectedDockByCenter[cc];if(sd){var d=docks.find(function(x){return x.dockCode===sd});if(d)selFcDocks.push({fc:d.fulfillmentCenterCode,dock:d.dockCode})}else docks.forEach(function(d){selFcDocks.push({fc:d.fulfillmentCenterCode,dock:d.dockCode})})});
+  // 입고지/입고지상세 필터
+  if(fcFilter)selFcDocks=selFcDocks.filter(function(x){return x.fc.toUpperCase().indexOf(fcFilter)>-1});
+  if(dockFilter)selFcDocks=selFcDocks.filter(function(x){return x.dock.toUpperCase().indexOf(dockFilter)>-1});
   var allDates=[];var cur=new Date(df);var end=new Date(dt);while(cur<=end){allDates.push(cur.toISOString().split("T")[0]);cur.setDate(cur.getDate()+1)}
   var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
+  var fcFilter=$("capaFcFilter").value.trim().toUpperCase(),dockFilter=$("capaDockFilter").value.trim().toUpperCase();
   capaResults={};var html="";
   allDates.forEach(function(date){var dd=byDate[date]||{};html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">'+date+'</div>';
     selFcDocks.forEach(function(sel){var k=sel.fc+"|"+sel.dock;var e=dd[k];var gk=date+"|"+k;
@@ -554,16 +562,19 @@ async function regBulkCapa(){var sel=[];document.querySelectorAll(".capaSel:chec
   for(var i=0;i<sel.length;i++){var k=sel[i];var cr=capaResults[k];
     var ai=rmsAreas.find(function(a){return a.code===cr.dock})||{};var areaId=ai.id||rmsAreaMap[cr.dock]||0;
     var cl=ai._cluster||"";if(!cl){var wi=rmsWarehouses.find(function(w){return w.code===cr.fc});cl=wi?wi.cluster:"CC02"}
-    var uid=(Date.now().toString(36)+Math.random().toString(36).slice(2,6)).toUpperCase();
-    var code=(prefix+"_"+uid).substring(0,20);
-    var body={cluster:cl,warehouse:cr.fc,inboundAreaId:Number(areaId),code:code,description:"",
-      startTimeSlotNumber:startSlot,endTimeSlotNumber:endSlot,startTime:startTime,endTime:endTime,
-      partyType:pt,releaseGroup:rg,xdockYnValue:xd,xdockYn:xd==="Y",startDate:cr.date,endDate:cr.date};
-    days.forEach(function(d){body[d+"Sku"]=skus[d];body[d+"Unit"]=units[d]});
-    var res=await api("https://inbound-api.rms.stg.kurly.services/web/v1/inbound-operation-time",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:body});
-    var already=res.data&&(res.data.type==="ALREADY_REGISTERED_CODE"||(res.data.message&&res.data.message.indexOf("이미 존재")>-1));
-    if(res.status===200){capaResults[k].exists=true;ok++;slog("  ✓ "+cr.fc+"/"+cr.dock+" ("+cr.date+")","ok")}
-    else if(already){capaResults[k].exists=true;ok++;slog("  ✓ "+cr.fc+"/"+cr.dock+" 이미 존재","ok")}
+    var baseCode=(prefix+"_"+cr.dock).substring(0,17);
+    var code=baseCode;var retryN=0;var res;
+    while(true){
+      var body={cluster:cl,warehouse:cr.fc,inboundAreaId:Number(areaId),code:code,description:"",
+        startTimeSlotNumber:startSlot,endTimeSlotNumber:endSlot,startTime:startTime,endTime:endTime,
+        partyType:pt,releaseGroup:rg,xdockYnValue:xd,xdockYn:xd==="Y",startDate:cr.date,endDate:cr.date};
+      days.forEach(function(d2){body[d2+"Sku"]=skus[d2];body[d2+"Unit"]=units[d2]});
+      res=await api("https://inbound-api.rms.stg.kurly.services/web/v1/inbound-operation-time",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:body});
+      if(res.data&&res.data.type==="ALREADY_REGISTERED_CODE"&&retryN<20){retryN++;code=(baseCode+"_"+retryN).substring(0,20);continue}
+      break;
+    }
+    if(res.status===200){capaResults[k].exists=true;ok++;slog("  ✓ "+cr.fc+"/"+cr.dock+" ("+cr.date+") 코드:"+code,"ok")}
+    else if(res.data&&res.data.message&&res.data.message.indexOf("이미 존재")>-1){capaResults[k].exists=true;ok++;slog("  ✓ "+cr.fc+"/"+cr.dock+" 이미 존재","ok")}
     else{fail++;slog("  ✗ "+cr.fc+"/"+cr.dock+": "+JSON.stringify(res.data).substring(0,100),"err")}
     await sleep(200)}
   slog("완료: 성공 "+ok+" / 실패 "+fail,"ok");
