@@ -263,6 +263,13 @@ input[readonly]{opacity:.6}
       <div class="dock-label">도크(입고지상세) 선택</div>
       <div class="dock-rows" id="dockRows"><span style="font-size:12px;color:var(--text3)">로그인 후 로드</span></div>
     </div>
+    <div style="margin-top:16px">
+      <label style="font-size:11px;color:var(--text2);font-weight:500;display:block;margin-bottom:6px">재고 증량 여부 (skipApplyStock)</label>
+      <div style="display:flex;gap:8px">
+        <div class="chip active" id="v2skip-false" onclick="v2SetSkip(false)" style="flex:1;text-align:center">재고 적용</div>
+        <div class="chip" id="v2skip-true" onclick="v2SetSkip(true)" style="flex:1;text-align:center">재고 스킵</div>
+      </div>
+    </div>
   </div>
 
   <!-- 공급사 로그인 (상품 선택 후 표시) -->
@@ -379,6 +386,7 @@ function showPage(name){
 var empToken="",supToken="",rmsToken="";  // CAPA용
 var empName_="",empCode_="";
 var v2empToken="",v2empName="",v2empCode="";  // V2용
+var v2skipVal=false;
 var FIXED_CENTERS=[{code:"WH02",label:"김포"},{code:"WH03",label:"평택"},{code:"WH04",label:"창원"},{code:"MCWH01",label:"DMC점"},{code:"MCWH02",label:"도곡점"}];
 var selectedCenters=["WH02"];
 var docksByCenterRaw={},selectedDockByCenter={};
@@ -398,6 +406,7 @@ function log(m,t){$("log-area").style.display="block";var li=document.createElem
 function slog(m,t){$("capa-log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("capa-log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
 function clearLog(){$("log-list").innerHTML="";$("resultCard").style.display="none"}
 function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1)}
+function v2SetSkip(v){v2skipVal=v;$("v2skip-false").className="chip"+(v?"":" active");$("v2skip-true").className="chip"+(v?" active":"")}
 function updateLoginStatus(){var parts=[];if(empToken)parts.push('<span class="on">●</span> CAPA');if(v2empToken)parts.push('<span class="on">●</span> V2');if(v1empToken)parts.push('<span class="on">●</span> V1');if(rmsToken)parts.push('<span class="on">●</span> RMS');$("loginStatus").innerHTML=parts.join(" ")||"미로그인"}
 
 var TIME_POINTS=[];
@@ -629,7 +638,7 @@ async function runAll(){if(!v2empToken)return;
   var dd=selectedGoodsIdx.map(function(i){return allDetailData[i]||{}});
   try{setFS(2,"active");
     log("[ 발주계획 ] 상품 "+gd.length+"건 / 센터 "+selFD.map(function(x){return x.cc+"("+x.fc+"/"+x.dock+")"}).join(", "),"info");
-    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:false,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
+    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
     var pr=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsList:items}});
     if(pr.status!==200)throw new Error("등록 실패 "+pr.status+": "+JSON.stringify(pr.data).substring(0,200));log("✓ "+items.length+"건 등록","ok");
     log("② planGoodsIds 추출...","info");var regDate=today;var email=$("v2empEmail").value;
