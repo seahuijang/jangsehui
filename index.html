@@ -308,9 +308,13 @@ input[readonly]{opacity:.6}
   <div class="card" id="supLoginCard" style="display:none">
     <div class="card-title"><span class="num">4</span>공급사 로그인</div>
     <p class="hint" style="margin-bottom:10px">선택한 상품의 공급사 계정 정보를 입력해주세요. 해당 공급사의 발주 건만 확정 후 명세서 생성 처리됩니다.</p>
+    <div style="margin-bottom:10px"><label style="font-size:11px;color:var(--text2);font-weight:500">저장된 공급사</label>
+      <select id="v2supSelect" onchange="onV2SupSelect()" style="margin-top:4px"><option value="">직접 입력</option></select>
+    </div>
     <div class="login-row">
       <div class="field"><label>ID</label><input id="supLoginId" type="text" value="vd5783.02"/></div>
       <div class="field"><label>비밀번호</label><input id="supPassword" type="password" value="1234"/></div>
+      <button class="btn btn-outline" style="height:38px;flex-shrink:0" onclick="v2SupTestLogin()">로그인 테스트</button>
     </div>
     <div class="auth-card sup" id="supCard"><div class="avatar" style="background:var(--indigo-dim);border:1px solid var(--indigo);color:var(--indigo)">S</div><div><p style="font-size:13px;color:var(--indigo);font-weight:500" id="supCardName">-</p><span style="font-size:11px;color:var(--text3)" id="supCardId">-</span></div></div>
   </div>
@@ -400,9 +404,13 @@ input[readonly]{opacity:.6}
   <div class="card" id="v1supLoginCard" style="display:none">
     <div class="card-title"><span class="num">4</span>공급사 로그인</div>
     <p class="hint" style="margin-bottom:10px">선택한 상품의 공급사 계정 정보를 입력해주세요. 해당 공급사의 발주 건만 확정 처리됩니다.</p>
-    <div class="grid2">
+    <div style="margin-bottom:10px"><label style="font-size:11px;color:var(--text2);font-weight:500">저장된 공급사</label>
+      <select id="v1supSelect" onchange="onV1SupSelect()" style="margin-top:4px"><option value="">직접 입력</option></select>
+    </div>
+    <div class="login-row">
       <div class="field"><label>ID</label><input id="v1supLoginId" type="text" value="vd5783.02"/></div>
       <div class="field"><label>비밀번호</label><input id="v1supPassword" type="password" value="1234"/></div>
+      <button class="btn btn-outline" style="height:38px;flex-shrink:0" onclick="v1SupTestLogin()">로그인 테스트</button>
     </div>
     <div class="auth-card sup" id="v1supCard"><div class="avatar" style="background:var(--indigo-dim);border:1px solid var(--indigo);color:var(--indigo)">S</div><div><p style="font-size:13px;color:var(--indigo);font-weight:500" id="v1supCardName">-</p><span style="font-size:11px;color:var(--text3)" id="v1supCardId">-</span></div></div>
   </div>
@@ -448,6 +456,7 @@ var ENV={
 };
 function getEnv(){return ENV[currentEnv]||ENV.STG}
 function setEnv(name){
+  console.log("[setEnv] 환경 전환:",name);
   currentEnv=name;
   document.querySelectorAll(".env-chip").forEach(function(c){c.classList.toggle("active",c.dataset.env===name)});
   var e=getEnv();
@@ -458,12 +467,61 @@ function setEnv(name){
   // V1
   $("v1empEmail").value=e.empEmail;$("v1supLoginId").value=e.supId;$("v1supPassword").value=e.supPw;
   // 토큰 초기화
-  empToken="";supToken="";rmsToken="";v2empToken="";v1empToken="";
-  // UI 초기화
+  empToken="";supToken="";rmsToken="";v2empToken="";v1empToken="";v1supToken="";
+  // UI 초기화 — 로그인 카드
   $("empCard").classList.remove("show");$("rmsCard").classList.remove("show");
   $("v2empCard").classList.remove("show");$("supCard").classList.remove("show");
   $("v1empCard").classList.remove("show");$("v1supCard").classList.remove("show");
-  updateLoginStatus();
+  // CAPA 영역 초기화
+  $("capaQueryCard").style.display="none";
+  $("capaResults").innerHTML="";$("capaRegArea").innerHTML="";
+  if($("rmsStatus"))$("rmsStatus").innerHTML="";
+  $("capaDateFrom").value=dateStr(1);$("capaDateTo").value=dateStr(1);
+  if($("capa-log-list"))$("capa-log-list").innerHTML="";
+  // V2 입력 초기화
+  $("searchSupplier").value="";$("searchGoods").value="";
+  $("recvDate").value=dateStr(1);$("quantity").value="1";
+  $("v2releaseProcess").value="";v2skipVal=false;
+  if($("v2skip-false"))$("v2skip-false").className="chip active";
+  if($("v2skip-true"))$("v2skip-true").className="chip";
+  $("goodsListArea").innerHTML="";
+  $("orderOptionsCard").style.display="none";
+  $("supLoginCard").style.display="none";
+  $("v2capaCheckResult").style.display="none";
+  $("runBtn").disabled=true;$("runBtn").textContent="상품 선택 후 실행 가능";
+  $("searchBtn").disabled=true;
+  if($("v2supSelect"))$("v2supSelect").value="";
+  $("log-area").style.display="none";$("log-list").innerHTML="";
+  $("resultCard").style.display="none";
+  // V1 입력 초기화
+  $("v1searchWord").value="";$("v1searchSupplier").value="";
+  $("v1groupName").value="세희발주테스트";$("v1recvDate").value=dateStr(1);$("v1boxQnty").value="1";
+  $("v1releaseProcess").value="";v1skipVal=false;
+  if($("v1skip-false"))$("v1skip-false").className="chip active";
+  if($("v1skip-true"))$("v1skip-true").className="chip";
+  $("v1goodsListArea").innerHTML="";
+  $("v1optionsCard").style.display="none";
+  $("v1supLoginCard").style.display="none";
+  $("v1runBtn").disabled=true;$("v1runBtn").textContent="임직원 로그인 후 실행 가능";
+  $("v1searchBtn").disabled=true;
+  if($("v1supSelect"))$("v1supSelect").value="";
+  $("v1log-area").style.display="none";if($("v1log-list"))$("v1log-list").innerHTML="";
+  $("v1resultCard").style.display="none";
+  // 센터/도크 초기화
+  selectedCenters=["WH02"];selectedDockByCenter={};
+  v1selectedCenters=["WH02","WH03","WH04","MCWH01","MCWH02"];v1selectedDockByCenter={};
+  docksByCenterRaw={};v1docksByCenterRaw={};
+  initCenters();v1InitCenters();
+  $("dockSection").classList.remove("show");$("dockRows").innerHTML='<span style="font-size:12px;color:var(--text3)">로그인 후 로드</span>';
+  if($("v1dockSection"))$("v1dockSection").classList.remove("show");
+  if($("v1dockRows"))$("v1dockRows").innerHTML='<span style="font-size:12px;color:var(--text3)">로그인 후 로드</span>';
+  // 데이터 초기화
+  allGoodsData=[];allDetailData=[];selectedGoodsIdx=[];
+  v1AllGoods=[];v1AllDetail=[];v1SelectedIdx=[];
+  // 플로우 상태 초기화
+  for(var i=1;i<=5;i++){var fs=$("fs"+i);if(fs)fs.className="flow-step"+(i===1?" active":"");var vfs=$("v1fs"+i);if(vfs)vfs.className="flow-step"+(i===1?" active":"");}
+  updateLoginStatus();refreshSupSelects();
+  console.log("[setEnv] 초기화 완료");
 }
 
 var empToken="",supToken="",rmsToken="";  // CAPA용
@@ -489,6 +547,88 @@ function log(m,t){$("log-area").style.display="block";var li=document.createElem
 function slog(m,t){$("capa-log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("capa-log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
 function clearLog(){$("log-list").innerHTML="";$("resultCard").style.display="none"}
 function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1);v2CheckCapa()}
+
+// ═══════════ 공급사 계정 저장 (localStorage) ═══════════
+function getSupStorageKey(){return"sqe_suppliers_"+(currentEnv.startsWith("DEV")?"DEV":currentEnv)}
+function getSavedSuppliers(){try{return JSON.parse(localStorage.getItem(getSupStorageKey())||"[]")}catch(e){return[]}}
+function saveSupplier(id,pw,name,supplierCode){
+  var list=getSavedSuppliers();
+  var existing=list.find(function(s){return s.id===id});
+  if(existing){existing.pw=pw;if(name)existing.name=name;if(supplierCode)existing.supplierCode=supplierCode}
+  else list.push({id:id,pw:pw,name:name||id,supplierCode:supplierCode||""});
+  localStorage.setItem(getSupStorageKey(),JSON.stringify(list));
+  refreshSupSelects();
+}
+function refreshSupSelects(){
+  var list=getSavedSuppliers();
+  ["v2supSelect","v1supSelect"].forEach(function(selId){
+    var sel=$(selId);if(!sel)return;
+    var cur=sel.value;
+    sel.innerHTML='<option value="">직접 입력</option>';
+    list.forEach(function(s){
+      var code=s.id.split(".")[0]||s.id; // vd5783.02 → vd5783 부분은 그대로 id 사용
+      sel.innerHTML+='<option value="'+s.id+'">'+s.id+' ('+(s.name||"-")+')</option>'});
+    sel.value=cur;
+  });
+}
+async function onV2SupSelect(){
+  var sel=$("v2supSelect");var id=sel.value;if(!id)return;
+  var s=getSavedSuppliers().find(function(x){return x.id===id});
+  if(!s)return;
+  $("supLoginId").value=s.id;$("supPassword").value=s.pw;
+  // 자동 로그인
+  var r=await api(getEnv().escm+"/api/v2/user/login",{method:"POST",body:{loginId:s.id,password:s.pw}});
+  if(r.data.token){
+    supToken=r.data.token;
+    var jwt=decodeJWT(r.data.token)||{};
+    var sc=jwt.supplierCode||s.supplierCode||s.id;var sn=jwt.name||s.name||s.id;
+    $("supCardName").textContent=sc+" ("+sn+")";$("supCardId").textContent=s.id;$("supCard").classList.add("show");
+    log("✓ 공급사 자동 로그인: "+sc+" ("+sn+")","ok");updateLoginStatus();
+  } else {log("공급사 로그인 실패: "+s.id,"err")}
+}
+async function onV1SupSelect(){
+  var sel=$("v1supSelect");var id=sel.value;if(!id)return;
+  var s=getSavedSuppliers().find(function(x){return x.id===id});
+  if(!s)return;
+  $("v1supLoginId").value=s.id;$("v1supPassword").value=s.pw;
+  // 자동 로그인
+  var r=await api(getEnv().escm+"/api/v2/user/login",{method:"POST",body:{loginId:s.id,password:s.pw}});
+  if(r.data.token){
+    v1supToken=r.data.token;
+    var jwt=decodeJWT(r.data.token)||{};
+    var sc=jwt.supplierCode||s.supplierCode||s.id;var sn=jwt.name||s.name||s.id;
+    $("v1supCardName").textContent=sc+" ("+sn+")";$("v1supCardId").textContent=s.id;$("v1supCard").classList.add("show");
+    v1log("✓ 공급사 자동 로그인: "+sc+" ("+sn+")","ok");updateLoginStatus();
+  } else {v1log("공급사 로그인 실패: "+s.id,"err")}
+}
+async function v2SupTestLogin(){
+  var id=$("supLoginId").value,pw=$("supPassword").value;
+  if(!id||!pw){alert("ID/비밀번호 입력");return}
+  var r=await api(getEnv().escm+"/api/v2/user/login",{method:"POST",body:{loginId:id,password:pw}});
+  if(r.data.token){
+    supToken=r.data.token;
+    var jwt=decodeJWT(r.data.token)||{};
+    var supCode=jwt.supplierCode||id;
+    var supName=jwt.name||id;
+    saveSupplier(id,pw,supName,supCode);
+    $("supCardName").textContent=supCode+" ("+supName+")";$("supCardId").textContent=id;$("supCard").classList.add("show");
+    log("✓ 공급사 로그인 성공: "+supCode+" ("+supName+") — 저장됨","ok");updateLoginStatus();
+  } else {alert("로그인 실패: "+JSON.stringify(r.data).substring(0,100))}
+}
+async function v1SupTestLogin(){
+  var id=$("v1supLoginId").value,pw=$("v1supPassword").value;
+  if(!id||!pw){alert("ID/비밀번호 입력");return}
+  var r=await api(getEnv().escm+"/api/v2/user/login",{method:"POST",body:{loginId:id,password:pw}});
+  if(r.data.token){
+    v1supToken=r.data.token;
+    var jwt=decodeJWT(r.data.token)||{};
+    var supCode=jwt.supplierCode||id;
+    var supName=jwt.name||id;
+    saveSupplier(id,pw,supName,supCode);
+    $("v1supCardName").textContent=supCode+" ("+supName+")";$("v1supCardId").textContent=id;$("v1supCard").classList.add("show");
+    v1log("✓ 공급사 로그인 성공: "+supCode+" ("+supName+") — 저장됨","ok");updateLoginStatus();
+  } else {alert("로그인 실패: "+JSON.stringify(r.data).substring(0,100))}
+}
 
 function populateCapaFcDockFilters(){
   // RMS warehouses + areas 기반 (전체 입고지)
@@ -889,9 +1029,14 @@ async function runAll(){if(!v2empToken)return;
     var grp=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/groups?purchaseOrderRegisterDateFrom="+regDate+"&purchaseOrderRegisterDateTo="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=20",{headers:{Authorization:"Bearer "+v2empToken}});
     var gdd=grp.data&&grp.data.data||[];if(gdd.length)regDate=gdd[0].purchaseOrderManagerRegisterDate||regDate;
     var ptc=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=200",{headers:{Authorization:"Bearer "+v2empToken}});
-    var pd=ptc.data&&ptc.data.data||ptc.data;pd=Array.isArray(pd)?pd:(pd&&pd.goods||[]);var rIds=gd.map(function(g){return Number(g.goodsId)});
-    var sc=pd.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"&&rIds.indexOf(Number(i.goodsId))>-1});if(!sc.length)sc=pd.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"});
-    var pgIds=sc.map(function(i){return i.neoPurchaseOrderPlanGoodsId});log("✓ "+pgIds.length+"건","ok");setFS(2,"done");
+    log("  particular-group 응답 키: "+Object.keys(ptc.data||{}).join(","),"sub");
+    var pd=ptc.data&&ptc.data.data||ptc.data;pd=Array.isArray(pd)?pd:(pd&&pd.goods||pd&&pd.content||[]);
+    if(!Array.isArray(pd))pd=[];
+    log("  상품 수: "+pd.length+", 상태: "+pd.slice(0,3).map(function(x){return x.neoPurchaseOrderPlanGoodsStatus}).join(","),"sub");
+    var rIds=gd.map(function(g){return Number(g.goodsId)});
+    var sc=pd.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"&&rIds.indexOf(Number(i.goodsId))>-1});
+    if(!sc.length)sc=pd.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"});
+    var pgIds=sc.map(function(i){return i.neoPurchaseOrderPlanGoodsId});log("✓ planGoodsIds "+pgIds.length+"건","ok");setFS(2,"done");
     setFS(3,"active");log("[ 발주검사 ]","info");
     await api(admin+"/api-purchase/supervisor/v2/purchase-order-inspection/selections/duplicate-check",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsIds:pgIds}});
     var ins=await api(admin+"/api-purchase/supervisor/v2/purchase-order-inspection/selections",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsIds:pgIds}});
@@ -939,7 +1084,7 @@ async function runAll(){if(!v2empToken)return;
 
 // ═══════════ 초기화 ═══════════
 document.addEventListener("DOMContentLoaded",function(){$("recvDate").value=dateStr(1);$("capaDateFrom").value=dateStr(1);$("capaDateTo").value=dateStr(1);$("empEmail").addEventListener("keydown",function(e){if(e.key==="Enter")doEmpLogin()})});
-initCenters();updateLoginStatus();
+initCenters();updateLoginStatus();refreshSupSelects();
 
 // ═══════════ 발주 V1 전체 로직 ═══════════
 var v1empToken="",v1empName="",v1empCode="",v1skipVal=false;
