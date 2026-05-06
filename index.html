@@ -412,20 +412,22 @@ function clearLog(){$("log-list").innerHTML="";$("resultCard").style.display="no
 function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1)}
 
 function populateCapaFcDockFilters(){
-  var allFcs={},allDocks={};
-  Object.keys(docksByCenterRaw).forEach(function(cc){(docksByCenterRaw[cc]||[]).forEach(function(d){
-    allFcs[d.fulfillmentCenterCode]=true;
-    if(!allDocks[d.fulfillmentCenterCode])allDocks[d.fulfillmentCenterCode]=[];
-    allDocks[d.fulfillmentCenterCode].push(d);
-  })});
-  // RMS warehouses에서 한글명 매핑
+  // RMS warehouses + areas 기반 (전체 입고지)
   var whNames={};rmsWarehouses.forEach(function(w){whNames[w.code]=w.name});
+  // areas를 warehouse(FC) 기준으로 그룹핑
+  var areasByFc={};var allFcs={};
+  rmsAreas.forEach(function(a){
+    var fc=a.warehouse;if(!fc)return;
+    allFcs[fc]=true;
+    if(!areasByFc[fc])areasByFc[fc]=[];
+    areasByFc[fc].push(a);
+  });
   var fcSel=$("capaFcFilter");fcSel.innerHTML='<option value="">전체</option>';
   Object.keys(allFcs).sort().forEach(function(fc){
     var name=whNames[fc]||"";
     fcSel.innerHTML+='<option value="'+fc+'">'+(name?name+' ('+fc+')':fc)+'</option>';
   });
-  window._capaDocksByFc=allDocks;
+  window._capaAreasByFc=areasByFc;
   window._capaWhNames=whNames;
   updateCapaDockFilter();
 }
@@ -433,12 +435,13 @@ function populateCapaFcDockFilters(){
 function updateCapaDockFilter(){
   var fc=$("capaFcFilter").value;
   var dkSel=$("capaDockFilter");dkSel.innerHTML='<option value="">전체</option>';
-  if(fc&&window._capaDocksByFc&&window._capaDocksByFc[fc]){
-    window._capaDocksByFc[fc].forEach(function(d){dkSel.innerHTML+='<option value="'+d.dockCode+'">'+(d.dockName||d.dockCode)+' ('+d.dockCode+')</option>'});
+  var areasByFc=window._capaAreasByFc||{};
+  var whNames=window._capaWhNames||{};
+  if(fc&&areasByFc[fc]){
+    areasByFc[fc].forEach(function(a){dkSel.innerHTML+='<option value="'+a.code+'">'+a.name+' ('+a.code+')</option>'});
   } else if(!fc){
-    // 전체: 모든 dock 나열
-    Object.keys(window._capaDocksByFc||{}).forEach(function(fc2){var wn=(window._capaWhNames||{})[fc2]||fc2;(window._capaDocksByFc[fc2]||[]).forEach(function(d){
-      dkSel.innerHTML+='<option value="'+d.dockCode+'">'+wn+' > '+(d.dockName||d.dockCode)+'</option>';
+    Object.keys(areasByFc).sort().forEach(function(fc2){var wn=whNames[fc2]||fc2;(areasByFc[fc2]||[]).forEach(function(a){
+      dkSel.innerHTML+='<option value="'+a.code+'">'+wn+' > '+a.name+' ('+a.code+')</option>';
     })});
   }
 }
@@ -505,13 +508,23 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
   var r=await api("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt,{headers:{Authorization:"Bearer "+empToken}});
   var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];slog("✓ "+capas.length+"건","ok");
   var byDate={};capas.forEach(function(c){var d=c.scheduledReceivingDate;if(!byDate[d])byDate[d]={};var k=c.fulfillmentCenter+"|"+c.dock;if(!byDate[d][k])byDate[d][k]={fc:c.fulfillmentCenter,dock:c.dock,slots:[]};byDate[d][k].slots.push(c)});
-  var selFcDocks=[];selectedCenters.forEach(function(cc){var docks=docksByCenterRaw[cc]||[];var sd=selectedDockByCenter[cc];if(sd){var d=docks.find(function(x){return x.dockCode===sd});if(d)selFcDocks.push({fc:d.fulfillmentCenterCode,dock:d.dockCode})}else docks.forEach(function(d){selFcDocks.push({fc:d.fulfillmentCenterCode,dock:d.dockCode})})});
-  // 입고지/입고지상세 필터
-  if(fcFilter)selFcDocks=selFcDocks.filter(function(x){return x.fc===fcFilter});
-  if(dockFilter)selFcDocks=selFcDocks.filter(function(x){return x.dock===dockFilter});
-  var allDates=[];var cur=new Date(df);var end=new Date(dt);while(cur<=end){allDates.push(cur.toISOString().split("T")[0]);cur.setDate(cur.getDate()+1)}
   var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
   var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
+
+  // FC/Dock 필터 기반으로 조회 대상 결정 (rmsAreas 전체에서)
+  var selFcDocks=[];
+  if(dockFilter){
+    // 특정 dock 선택 → 그것만
+    var a=rmsAreas.find(function(x){return x.code===dockFilter});
+    if(a)selFcDocks.push({fc:a.warehouse,dock:a.code});
+  } else if(fcFilter){
+    // 특정 FC 선택 → 해당 FC의 모든 dock
+    rmsAreas.filter(function(x){return x.warehouse===fcFilter}).forEach(function(a){selFcDocks.push({fc:a.warehouse,dock:a.code})});
+  } else {
+    // 전체 → rmsAreas 전체
+    rmsAreas.forEach(function(a){selFcDocks.push({fc:a.warehouse,dock:a.code})});
+  }
+  var allDates=[];var cur=new Date(df);var end=new Date(dt);while(cur<=end){allDates.push(cur.toISOString().split("T")[0]);cur.setDate(cur.getDate()+1)}
   capaResults={};var html="";
   allDates.forEach(function(date){var dd=byDate[date]||{};html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">'+date+'</div>';
     // RMS warehouse 한글명
