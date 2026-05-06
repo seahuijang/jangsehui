@@ -1034,8 +1034,9 @@ async function runAll(){if(!v2empToken)return;
     if(!Array.isArray(pd))pd=[];
     log("  상품 수: "+pd.length+", 상태: "+pd.slice(0,3).map(function(x){return x.neoPurchaseOrderPlanGoodsStatus}).join(","),"sub");
     var rIds=gd.map(function(g){return Number(g.goodsId)});
-    var sc=pd.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"&&rIds.indexOf(Number(i.goodsId))>-1});
-    if(!sc.length)sc=pd.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"});
+    // SCHEDULED 또는 ISSUED 상태에서 이번 등록 상품 매칭
+    var sc=pd.filter(function(i){return(i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"||i.neoPurchaseOrderPlanGoodsStatus==="ISSUED")&&rIds.indexOf(Number(i.goodsId))>-1});
+    if(!sc.length)sc=pd.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="SCHEDULED"||i.neoPurchaseOrderPlanGoodsStatus==="ISSUED"});
     var pgIds=sc.map(function(i){return i.neoPurchaseOrderPlanGoodsId});log("✓ planGoodsIds "+pgIds.length+"건","ok");setFS(2,"done");
     setFS(3,"active");log("[ 발주검사 ]","info");
     await api(admin+"/api-purchase/supervisor/v2/purchase-order-inspection/selections/duplicate-check",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsIds:pgIds}});
