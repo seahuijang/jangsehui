@@ -204,8 +204,8 @@ input[readonly]{opacity:.6}
       <div class="field"><label>입고대행</label><select id="capaWpFilter"><option value="">전체</option><option value="false">N</option><option value="true">Y</option></select></div>
     </div>
     <div class="grid2" style="margin-bottom:14px">
-      <div class="field"><label>입고지 (FC)</label><input id="capaFcFilter" type="text" placeholder="예: GGM1 (빈칸=전체)"/></div>
-      <div class="field"><label>입고지상세 (Dock)</label><input id="capaDockFilter" type="text" placeholder="예: GGM1_L (빈칸=전체)"/></div>
+      <div class="field"><label>입고지 (FC)</label><select id="capaFcFilter" onchange="updateCapaDockFilter()"><option value="">전체</option></select></div>
+      <div class="field"><label>입고지상세 (Dock)</label><select id="capaDockFilter"><option value="">전체</option></select></div>
     </div>
     <button class="btn btn-primary btn-full" onclick="checkCapa()" id="capaCheckBtn">CAPA 조회</button>
     <div id="capaResults" style="margin-top:14px"></div>
@@ -410,6 +410,32 @@ function log(m,t){$("log-area").style.display="block";var li=document.createElem
 function slog(m,t){$("capa-log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("capa-log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
 function clearLog(){$("log-list").innerHTML="";$("resultCard").style.display="none"}
 function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1)}
+
+function populateCapaFcDockFilters(){
+  var allFcs={},allDocks={};
+  Object.keys(docksByCenterRaw).forEach(function(cc){(docksByCenterRaw[cc]||[]).forEach(function(d){
+    allFcs[d.fulfillmentCenterCode]=true;
+    if(!allDocks[d.fulfillmentCenterCode])allDocks[d.fulfillmentCenterCode]=[];
+    allDocks[d.fulfillmentCenterCode].push(d);
+  })});
+  var fcSel=$("capaFcFilter");fcSel.innerHTML='<option value="">전체</option>';
+  Object.keys(allFcs).sort().forEach(function(fc){fcSel.innerHTML+='<option value="'+fc+'">'+fc+'</option>'});
+  window._capaDocksByFc=allDocks;
+  updateCapaDockFilter();
+}
+
+function updateCapaDockFilter(){
+  var fc=$("capaFcFilter").value;
+  var dkSel=$("capaDockFilter");dkSel.innerHTML='<option value="">전체</option>';
+  if(fc&&window._capaDocksByFc&&window._capaDocksByFc[fc]){
+    window._capaDocksByFc[fc].forEach(function(d){dkSel.innerHTML+='<option value="'+d.dockCode+'">'+(d.dockName||d.dockCode)+' ('+d.dockCode+')</option>'});
+  } else if(!fc){
+    // 전체: 모든 dock 나열
+    Object.keys(window._capaDocksByFc||{}).forEach(function(fc2){(window._capaDocksByFc[fc2]||[]).forEach(function(d){
+      dkSel.innerHTML+='<option value="'+d.dockCode+'">'+fc2+' > '+(d.dockName||d.dockCode)+'</option>';
+    })});
+  }
+}
 function v2SetSkip(v){v2skipVal=v;$("v2skip-false").className="chip"+(v?"":" active");$("v2skip-true").className="chip"+(v?" active":"")}
 function updateLoginStatus(){var parts=[];if(empToken)parts.push('<span class="on">●</span> CAPA');if(v2empToken)parts.push('<span class="on">●</span> V2');if(v1empToken)parts.push('<span class="on">●</span> V1');if(rmsToken)parts.push('<span class="on">●</span> RMS');$("loginStatus").innerHTML=parts.join(" ")||"미로그인"}
 
@@ -436,6 +462,7 @@ async function doEmpLogin(){var email=$("empEmail").value.trim();if(!email){aler
       var ld=await fetch("https://api.escm.stg.kurly.com/api/v2/loadingdocks",{method:"GET",headers:empHeaders(empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
       docksByCenterRaw={};list.forEach(function(d){var cc=d.clusterCode||"";if(!cc)return;if(!docksByCenterRaw[cc])docksByCenterRaw[cc]=[];docksByCenterRaw[cc].push(d)});
       slog("입고지 도크 "+list.length+"개 로드","ok");
+      populateCapaFcDockFilters();
     }
   }catch(e){alert("로그인 실패: "+e.message);btn.textContent="로그인";btn.disabled=false}}
 
@@ -474,11 +501,11 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
   var byDate={};capas.forEach(function(c){var d=c.scheduledReceivingDate;if(!byDate[d])byDate[d]={};var k=c.fulfillmentCenter+"|"+c.dock;if(!byDate[d][k])byDate[d][k]={fc:c.fulfillmentCenter,dock:c.dock,slots:[]};byDate[d][k].slots.push(c)});
   var selFcDocks=[];selectedCenters.forEach(function(cc){var docks=docksByCenterRaw[cc]||[];var sd=selectedDockByCenter[cc];if(sd){var d=docks.find(function(x){return x.dockCode===sd});if(d)selFcDocks.push({fc:d.fulfillmentCenterCode,dock:d.dockCode})}else docks.forEach(function(d){selFcDocks.push({fc:d.fulfillmentCenterCode,dock:d.dockCode})})});
   // 입고지/입고지상세 필터
-  if(fcFilter)selFcDocks=selFcDocks.filter(function(x){return x.fc.toUpperCase().indexOf(fcFilter)>-1});
-  if(dockFilter)selFcDocks=selFcDocks.filter(function(x){return x.dock.toUpperCase().indexOf(dockFilter)>-1});
+  if(fcFilter)selFcDocks=selFcDocks.filter(function(x){return x.fc===fcFilter});
+  if(dockFilter)selFcDocks=selFcDocks.filter(function(x){return x.dock===dockFilter});
   var allDates=[];var cur=new Date(df);var end=new Date(dt);while(cur<=end){allDates.push(cur.toISOString().split("T")[0]);cur.setDate(cur.getDate()+1)}
   var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
-  var fcFilter=$("capaFcFilter").value.trim().toUpperCase(),dockFilter=$("capaDockFilter").value.trim().toUpperCase();
+  var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
   capaResults={};var html="";
   allDates.forEach(function(date){var dd=byDate[date]||{};html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">'+date+'</div>';
     selFcDocks.forEach(function(sel){var k=sel.fc+"|"+sel.dock;var e=dd[k];var gk=date+"|"+k;
@@ -565,10 +592,12 @@ async function regBulkCapa(){var sel=[];document.querySelectorAll(".capaSel:chec
     var baseCode=(prefix+"_"+cr.dock).substring(0,17);
     var code=baseCode;var retryN=0;var res;
     while(true){
-      var body={cluster:cl,warehouse:cr.fc,inboundAreaId:Number(areaId),code:code,description:"",
+      var body={cluster:cl,warehouse:cr.fc,inboundAreaId:Number(areaId),partyType:pt,releaseGroup:rg,xdockYnValue:xd,
+        code:code,description:"",startDate:cr.date,endDate:cr.date,
         startTimeSlotNumber:startSlot,endTimeSlotNumber:endSlot,startTime:startTime,endTime:endTime,
-        partyType:pt,releaseGroup:rg,xdockYnValue:xd,xdockYn:xd==="Y",startDate:cr.date,endDate:cr.date};
-      days.forEach(function(d2){body[d2+"Sku"]=skus[d2];body[d2+"Unit"]=units[d2]});
+        monSku:skus.mon,tueSku:skus.tue,wedSku:skus.wed,thuSku:skus.thu,friSku:skus.fri,satSku:skus.sat,sunSku:skus.sun,
+        monUnit:units.mon,tueUnit:units.tue,wedUnit:units.wed,thuUnit:units.thu,friUnit:units.fri,satUnit:units.sat,sunUnit:units.sun,
+        xdockYn:xd==="Y"};
       res=await api("https://inbound-api.rms.stg.kurly.services/web/v1/inbound-operation-time",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:body});
       if(res.data&&res.data.type==="ALREADY_REGISTERED_CODE"&&retryN<20){retryN++;code=(baseCode+"_"+retryN).substring(0,20);continue}
       break;
