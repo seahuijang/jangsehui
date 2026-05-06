@@ -29,6 +29,10 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-seri
 .tab.active{color:var(--primary-light);border-bottom-color:var(--primary)}
 .top-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 .env-badge{background:var(--primary-dim);color:var(--primary);font-size:10px;font-weight:600;padding:3px 10px;border-radius:20px;border:1px solid var(--primary);letter-spacing:.5px}
+.env-selector{display:flex;gap:4px}
+.env-chip{font-size:10px;font-weight:600;padding:3px 8px;border-radius:12px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);transition:all .12s;letter-spacing:.3px}
+.env-chip:hover{border-color:var(--primary);color:var(--text2)}
+.env-chip.active{background:var(--primary-dim);color:var(--primary-light);border-color:var(--primary)}
 .login-status{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace}
 .login-status .on{color:var(--green)}
 
@@ -167,7 +171,14 @@ input[readonly]{opacity:.6}
   </div>
   <div class="top-right">
     <span class="login-status" id="loginStatus"></span>
-    <span class="env-badge">STG</span>
+    <div class="env-selector">
+      <div class="env-chip active" data-env="STG" onclick="setEnv('STG')">STG</div>
+      <div class="env-chip" data-env="DEV01" onclick="setEnv('DEV01')">DEV01</div>
+      <div class="env-chip" data-env="DEV02" onclick="setEnv('DEV02')">DEV02</div>
+      <div class="env-chip" data-env="DEV03" onclick="setEnv('DEV03')">DEV03</div>
+      <div class="env-chip" data-env="DEV04" onclick="setEnv('DEV04')">DEV04</div>
+      <div class="env-chip" data-env="DEV05" onclick="setEnv('DEV05')">DEV05</div>
+    </div>
   </div>
 </div>
 
@@ -261,9 +272,8 @@ input[readonly]{opacity:.6}
   <div class="card" id="orderOptionsCard" style="display:none">
     <div class="card-title"><span class="num">3</span>발주 옵션</div>
     <p class="hint" style="margin-bottom:10px">발주 정보를 선택하여 입력해주세요. 선택된 입고지만 발주 처리됩니다.</p>
-    <div class="grid3" style="margin-bottom:14px">
-      <div class="field"><label>발주유형</label><select id="poType" onchange="onPoType()"><option value="NORMAL">NORMAL</option><option value="EMERGENCY">EMERGENCY</option></select></div>
-      <div class="field"><label>입고예정일</label><input id="recvDate" type="date"/></div>
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="field"><label>입고예정일</label><input id="recvDate" type="date" onchange="v2CheckCapa()"/><p class="hint">기본: 오늘 +1일</p></div>
       <div class="field"><label>수량</label><input id="quantity" type="number" value="1" min="1"/></div>
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.06em;margin-bottom:10px">입고지 선택</div>
@@ -272,14 +282,27 @@ input[readonly]{opacity:.6}
       <div class="dock-label">도크(입고지상세) 선택</div>
       <div class="dock-rows" id="dockRows"><span style="font-size:12px;color:var(--text3)">로그인 후 로드</span></div>
     </div>
-    <div style="margin-top:16px">
-      <label style="font-size:11px;color:var(--text2);font-weight:500;display:block;margin-bottom:6px">재고 증량 여부 (skipApplyStock)</label>
-      <div style="display:flex;gap:8px">
-        <div class="chip active" id="v2skip-false" onclick="v2SetSkip(false)" style="flex:1;text-align:center">재고 적용</div>
-        <div class="chip" id="v2skip-true" onclick="v2SetSkip(true)" style="flex:1;text-align:center">재고 스킵</div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="field">
+        <label>출고방법 (ReleaseProcess)</label>
+        <select id="v2releaseProcess" onchange="onV2RpChange()">
+          <option value="">상품 기본값 유지</option>
+          <option value="PARCEL">택배로 변경</option>
+        </select>
+        <div id="v2rpSummary" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label>재고 증량 여부 (skipApplyStock)</label>
+        <div style="display:flex;gap:8px;margin-top:2px">
+          <div class="chip active" id="v2skip-false" onclick="v2SetSkip(false)" style="flex:1;text-align:center">재고 적용</div>
+          <div class="chip" id="v2skip-true" onclick="v2SetSkip(true)" style="flex:1;text-align:center">재고 스킵</div>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- CAPA 사전 체크 결과 -->
+  <div id="v2capaCheckResult" style="display:none"></div>
 
   <!-- 공급사 로그인 (상품 선택 후 표시) -->
   <div class="card" id="supLoginCard" style="display:none">
@@ -354,11 +377,21 @@ input[readonly]{opacity:.6}
       <div class="dock-label">도크(하차장) 선택</div>
       <div class="dock-rows" id="v1dockRows"><span style="font-size:12px;color:var(--text3)">로그인 후 로드</span></div>
     </div>
-    <div style="margin-top:16px">
-      <label style="font-size:11px;color:var(--text2);font-weight:500;display:block;margin-bottom:6px">재고 증량 여부</label>
-      <div style="display:flex;gap:8px">
-        <div class="chip active" id="v1skip-false" onclick="v1SetSkip(false)" style="flex:1;text-align:center">재고 적용</div>
-        <div class="chip" id="v1skip-true" onclick="v1SetSkip(true)" style="flex:1;text-align:center">재고 스킵</div>
+    <div class="grid2" style="margin-top:16px">
+      <div class="field">
+        <label>출고방법 (ReleaseProcess)</label>
+        <select id="v1releaseProcess" onchange="onV1RpChange()">
+          <option value="">상품 기본값 유지</option>
+          <option value="PARCEL">택배로 변경</option>
+        </select>
+        <div id="v1rpSummary" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label>재고 증량 여부</label>
+        <div style="display:flex;gap:8px;margin-top:2px">
+          <div class="chip active" id="v1skip-false" onclick="v1SetSkip(false)" style="flex:1;text-align:center">재고 적용</div>
+          <div class="chip" id="v1skip-true" onclick="v1SetSkip(true)" style="flex:1;text-align:center">재고 스킵</div>
+        </div>
       </div>
     </div>
   </div>
@@ -397,6 +430,42 @@ function showPage(name){
 }
 
 // ═══════════ 전역 ═══════════
+// ═══════════ 환경 설정 ═══════════
+var currentEnv="STG";
+var ENV={
+  STG:{admin:"https://escm-api-admin.stg.kurly.services",escm:"https://api.escm.stg.kurly.com",rms:"https://inbound-api.rms.stg.kurly.services",
+    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang1",rmsPw:"tpgldia12!",supId:"vd5783.02",supPw:"1234"},
+  DEV01:{admin:"https://escm-api01.dev.kurly.services",escm:"https://escm-api01.dev.kurly.services",rms:"https://inbound-api.rms.dev.kurly.services",
+    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang",rmsPw:"tpgmlqkqh12!",supId:"vd3596.01",supPw:"1234"},
+  DEV02:{admin:"https://escm-api02.dev.kurly.services",escm:"https://escm-api02.dev.kurly.services",rms:"https://inbound-api.rms.dev.kurly.services",
+    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang",rmsPw:"tpgmlqkqh12!",supId:"vd3596.01",supPw:"1234"},
+  DEV03:{admin:"https://escm-api03.dev.kurly.services",escm:"https://escm-api03.dev.kurly.services",rms:"https://inbound-api.rms.dev.kurly.services",
+    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang",rmsPw:"tpgmlqkqh12!",supId:"vd3596.01",supPw:"1234"},
+  DEV04:{admin:"https://escm-api04.dev.kurly.services",escm:"https://escm-api04.dev.kurly.services",rms:"https://inbound-api.rms.dev.kurly.services",
+    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang",rmsPw:"tpgmlqkqh12!",supId:"vd3596.01",supPw:"1234"},
+  DEV05:{admin:"https://escm-api05.dev.kurly.services",escm:"https://escm-api05.dev.kurly.services",rms:"https://inbound-api.rms.dev.kurly.services",
+    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang",rmsPw:"tpgmlqkqh12!",supId:"vd3596.01",supPw:"1234"},
+};
+function getEnv(){return ENV[currentEnv]||ENV.STG}
+function setEnv(name){
+  currentEnv=name;
+  document.querySelectorAll(".env-chip").forEach(function(c){c.classList.toggle("active",c.dataset.env===name)});
+  var e=getEnv();
+  // 기본 계정 업데이트 (CAPA 탭)
+  $("empEmail").value=e.empEmail;$("rmsId").value=e.rmsId;$("rmsPw").value=e.rmsPw;
+  // V2
+  $("v2empEmail").value=e.empEmail;$("supLoginId").value=e.supId;$("supPassword").value=e.supPw;
+  // V1
+  $("v1empEmail").value=e.empEmail;$("v1supLoginId").value=e.supId;$("v1supPassword").value=e.supPw;
+  // 토큰 초기화
+  empToken="";supToken="";rmsToken="";v2empToken="";v1empToken="";
+  // UI 초기화
+  $("empCard").classList.remove("show");$("rmsCard").classList.remove("show");
+  $("v2empCard").classList.remove("show");$("supCard").classList.remove("show");
+  $("v1empCard").classList.remove("show");$("v1supCard").classList.remove("show");
+  updateLoginStatus();
+}
+
 var empToken="",supToken="",rmsToken="";  // CAPA용
 var empName_="",empCode_="";
 var v2empToken="",v2empName="",v2empCode="";  // V2용
@@ -419,7 +488,7 @@ function supHeaders(t){return{"accept":"application/json","authorization":t,"con
 function log(m,t){$("log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
 function slog(m,t){$("capa-log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("capa-log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
 function clearLog(){$("log-list").innerHTML="";$("resultCard").style.display="none"}
-function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1)}
+function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1);v2CheckCapa()}
 
 function populateCapaFcDockFilters(){
   // RMS warehouses + areas 기반 (전체 입고지)
@@ -456,6 +525,89 @@ function updateCapaDockFilter(){
   }
 }
 function v2SetSkip(v){v2skipVal=v;$("v2skip-false").className="chip"+(v?"":" active");$("v2skip-true").className="chip"+(v?" active":"")}
+
+var RP_LABELS={"KURLY_PICKUP":"컬리픽업","MILKRUN_PICKUP":"밀크런픽업","KURLY_MILKRUN_PICKUP":"컬리픽업+밀크런픽업","PARCEL":"택배","DIRECT_DELIVERY":"직배송","ETC":"기타"};
+function rpLabel(code){return RP_LABELS[code]||code||"-"}
+
+// 출고방법 변경 가능 규칙
+var RP_ALLOWED={
+  "KURLY_PICKUP":["KURLY_PICKUP","DIRECT_DELIVERY","PARCEL","ETC"],
+  "MILKRUN_PICKUP":["MILKRUN_PICKUP","DIRECT_DELIVERY","PARCEL","ETC"],
+  "KURLY_MILKRUN_PICKUP":["KURLY_PICKUP","MILKRUN_PICKUP","KURLY_MILKRUN_PICKUP","DIRECT_DELIVERY","PARCEL","ETC"],
+  "PARCEL":["PARCEL","DIRECT_DELIVERY","ETC"],
+  "DIRECT_DELIVERY":["PARCEL","DIRECT_DELIVERY","ETC"],
+  "ETC":["PARCEL","DIRECT_DELIVERY","ETC"]
+};
+
+// 선택된 상품들의 출고방법 기준으로 셀렉트 옵션 활성/비활성화
+function updateRpOptions(selectId,goodsData,detailData,selectedIdx,isV1){
+  var sel=$(selectId);if(!sel)return;
+  // 선택된 상품들의 기본 출고방법 수집
+  var rpSet={};
+  selectedIdx.forEach(function(i){
+    var rp=isV1?(detailData[i]&&(detailData[i].releaseCode||detailData[i].goodsReleaseCode)||""):(detailData[i]&&detailData[i].shippingProcess||goodsData[i]&&goodsData[i].shippingProcess||"");
+    if(rp)rpSet[rp]=true;
+  });
+  // 교집합: 모든 상품이 변경 가능한 옵션만
+  var allCodes=Object.keys(RP_LABELS);
+  var allowed=null;
+  Object.keys(rpSet).forEach(function(rp){
+    var a=RP_ALLOWED[rp]||allCodes;
+    if(!allowed)allowed=a.slice();
+    else allowed=allowed.filter(function(c){return a.indexOf(c)>-1});
+  });
+  if(!allowed)allowed=allCodes;
+  // 옵션 활성/비활성
+  for(var i=0;i<sel.options.length;i++){
+    var opt=sel.options[i];
+    if(opt.value===""){opt.disabled=false;continue}
+    opt.disabled=allowed.indexOf(opt.value)<0;
+  }
+}
+
+// 출고방법 변경 시 → 택배면 CAPA 재조회
+function onV2RpChange(){
+  var rp=$("v2releaseProcess").value;
+  if(rp==="PARCEL")v2CheckCapa("PARCEL");
+  else v2CheckCapa();
+}
+function onV1RpChange(){/* V1은 CAPA 체크 없음 */}
+
+async function v2CheckCapa(shipFilter){
+  var el=$("v2capaCheckResult");if(!el)return;
+  var sDate=$("recvDate").value;if(!sDate||!v2empToken){el.style.display="none";return}
+  // 선택한 센터+도크 목록
+  var selFD=[];
+  selectedCenters.forEach(function(cc){var d=docksByCenterRaw[cc]||[];var sd=selectedDockByCenter[cc];
+    if(sd){var f=d.find(function(x){return x.dockCode===sd});if(f)selFD.push({fc:f.fulfillmentCenterCode,dock:f.dockCode})}
+    else if(d.length)selFD.push({cc:cc,fc:d[0].fulfillmentCenterCode,dock:d[0].dockCode})});
+  if(!selFD.length){el.style.display="none";return}
+  // daily-capa 조회
+  var r=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+sDate+"&scheduledReceivingDateTo="+sDate,{headers:{Authorization:"Bearer "+v2empToken}});
+  var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];
+  // shipFilter가 있으면 해당 출고방법 CAPA만 체크
+  if(shipFilter)capas=capas.filter(function(c){return c.rmsShippingProcess===shipFilter});
+  var capaMap={};capas.forEach(function(c){var k=c.fulfillmentCenter+"|"+c.dock;if(!capaMap[k])capaMap[k]=[];capaMap[k].push(c)});
+  // 매칭
+  var missing=[];
+  selFD.forEach(function(s){var k=s.fc+"|"+s.dock;if(!capaMap[k]||!capaMap[k].length)missing.push(s)});
+  if(missing.length>0){
+    var whNames=window._capaWhNames||{};
+    var html='<div class="card" style="border-color:var(--red);margin-bottom:14px">';
+    var filterLabel=shipFilter?rpLabel(shipFilter)+" ":"";
+    html+='<div style="color:var(--red);font-size:13px;font-weight:600;margin-bottom:8px">⚠ '+filterLabel+'CAPA 없는 입고지가 있습니다</div>';
+    missing.forEach(function(m){
+      var wn=whNames[m.fc]||m.fc;var an=(rmsAreas.find(function(a){return a.code===m.dock})||{}).name||m.dock;
+      html+='<div style="font-size:12px;color:var(--red);margin-bottom:2px">· '+wn+'('+m.fc+') > '+an+'('+m.dock+')</div>';
+    });
+    html+='<p style="font-size:12px;color:var(--amber);margin-top:10px">CAPA 관리 탭에서 CAPA 등록 후 발주 진행 부탁드립니다.</p>';
+    html+='</div>';
+    el.innerHTML=html;el.style.display="block";
+  } else {
+    el.innerHTML='<div class="card" style="border-color:var(--green);margin-bottom:14px"><div style="color:var(--green);font-size:13px">✓ 선택한 입고지의 CAPA가 모두 확인되었습니다.</div></div>';
+    el.style.display="block";
+  }
+}
 function updateLoginStatus(){var parts=[];if(empToken)parts.push('<span class="on">●</span> CAPA');if(v2empToken)parts.push('<span class="on">●</span> V2');if(v1empToken)parts.push('<span class="on">●</span> V1');if(rmsToken)parts.push('<span class="on">●</span> RMS');$("loginStatus").innerHTML=parts.join(" ")||"미로그인"}
 
 var TIME_POINTS=[];
@@ -464,21 +616,21 @@ function timeStartOpts(){return TIME_POINTS.map(function(t,i){return'<option val
 function timeEndOpts(){return TIME_POINTS.map(function(t,i){var em=parseInt(t.split(":")[1])+29;return'<option value="'+(i+1)+'" data-t="'+t.split(":")[0]+':'+String(em).padStart(2,"0")+':59">'+t.split(":")[0]+':'+String(em).padStart(2,"0")+'</option>'}).join("")}
 
 // ═══════════ 센터/도크 ═══════════
-function initCenters(){var g=$("centerGrid");g.innerHTML="";FIXED_CENTERS.forEach(function(c){var ch=document.createElement("div");ch.className="chip"+(selectedCenters.indexOf(c.code)>-1?" active":"");ch.textContent=c.label+" ("+c.code+")";ch.onclick=function(){var i=selectedCenters.indexOf(c.code);if(i>-1){selectedCenters.splice(i,1);ch.classList.remove("active")}else{selectedCenters.push(c.code);ch.classList.add("active")}if($("dockSection").classList.contains("show"))renderDockRows()};g.appendChild(ch)})}
+function initCenters(){var g=$("centerGrid");g.innerHTML="";FIXED_CENTERS.forEach(function(c){var ch=document.createElement("div");ch.className="chip"+(selectedCenters.indexOf(c.code)>-1?" active":"");ch.textContent=c.label+" ("+c.code+")";ch.onclick=function(){var i=selectedCenters.indexOf(c.code);if(i>-1){selectedCenters.splice(i,1);ch.classList.remove("active")}else{selectedCenters.push(c.code);ch.classList.add("active")}if($("dockSection").classList.contains("show"))renderDockRows();v2CheckCapa()};g.appendChild(ch)})}
 function renderDockRows(){var c=$("dockRows");c.innerHTML="";selectedCenters.forEach(function(cc){var docks=docksByCenterRaw[cc]||[];var row=document.createElement("div");row.className="dock-row";row.id="dock-row-"+cc;var lb=document.createElement("div");lb.className="dock-row-label";var info=FIXED_CENTERS.find(function(f){return f.code===cc});lb.textContent=info?info.label:cc;row.appendChild(lb);var chips=document.createElement("div");chips.className="dock-chips";var none=document.createElement("div");none.className="dock-chip default"+(!selectedDockByCenter[cc]?" active":"");none.textContent="상품 기본값";none.onclick=function(){selectDock(cc,null)};chips.appendChild(none);docks.forEach(function(d){var ch=document.createElement("div");ch.className="dock-chip"+(selectedDockByCenter[cc]===d.dockCode?" active":"");ch.textContent=(d.dockName||d.dockCode)+" · "+d.dockCode;ch.onclick=function(){selectDock(cc,d.dockCode)};chips.appendChild(ch)});row.appendChild(chips);c.appendChild(row)})}
-function selectDock(cc,code){selectedDockByCenter[cc]=code;var row=$("dock-row-"+cc);if(!row)return;row.querySelectorAll(".dock-chip").forEach(function(c){var isNone=c.classList.contains("default");c.classList.toggle("active",isNone?(code===null):c.textContent.indexOf(code||"__NO__")>-1)})}
+function selectDock(cc,code){selectedDockByCenter[cc]=code;var row=$("dock-row-"+cc);if(!row)return;row.querySelectorAll(".dock-chip").forEach(function(c){var isNone=c.classList.contains("default");c.classList.toggle("active",isNone?(code===null):c.textContent.indexOf(code||"__NO__")>-1)});v2CheckCapa()}
 
 // ═══════════ 임직원 로그인 ═══════════
 async function doEmpLogin(){var email=$("empEmail").value.trim();if(!email){alert("이메일 입력");return}
   var btn=$("empLoginBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
-  try{var res=await fetch("https://escm-api-admin.stg.kurly.services/api-authorization/supervisor/v1/employee/fake-signin/email/"+encodeURIComponent(email),{method:"GET",headers:{"accept":"application/json"}});var json=await res.json();if(!json.token)throw new Error("토큰 없음");
+  try{var res=await fetch(getEnv().admin+"/api-authorization/supervisor/v1/employee/fake-signin/email/"+encodeURIComponent(email),{method:"GET",headers:{"accept":"application/json"}});var json=await res.json();if(!json.token)throw new Error("토큰 없음");
     empToken=json.token;var p=decodeJWT(empToken);empName_=(p&&p.name)||email;empCode_=(p&&p.emplCode)||"";
     $("empName").textContent=empName_;$("empCode").textContent=empCode_||email;$("empAvatar").textContent=empName_.slice(-2);$("empCard").classList.add("show");
     $("capaQueryCard").style.display="block";
     btn.textContent="재발급";btn.disabled=false;updateLoginStatus();
     // CAPA 조회용 도크 로드
     if(!Object.keys(docksByCenterRaw).length){
-      var ld=await fetch("https://api.escm.stg.kurly.com/api/v2/loadingdocks",{method:"GET",headers:empHeaders(empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
+      var ld=await fetch(getEnv().escm+"/api/v2/loadingdocks",{method:"GET",headers:empHeaders(empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
       docksByCenterRaw={};list.forEach(function(d){var cc=d.clusterCode||"";if(!cc)return;if(!docksByCenterRaw[cc])docksByCenterRaw[cc]=[];docksByCenterRaw[cc].push(d)});
       slog("입고지 도크 "+list.length+"개 로드","ok");
       populateCapaFcDockFilters();
@@ -488,25 +640,25 @@ async function doEmpLogin(){var email=$("empEmail").value.trim();if(!email){aler
 // V2 전용 임직원 로그인
 async function v2EmpLogin(){var email=$("v2empEmail").value.trim();if(!email){alert("이메일 입력");return}
   var btn=$("v2empLoginBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
-  try{var res=await fetch("https://escm-api-admin.stg.kurly.services/api-authorization/supervisor/v1/employee/fake-signin/email/"+encodeURIComponent(email),{method:"GET",headers:{"accept":"application/json"}});var json=await res.json();if(!json.token)throw new Error("토큰 없음");
+  try{var res=await fetch(getEnv().admin+"/api-authorization/supervisor/v1/employee/fake-signin/email/"+encodeURIComponent(email),{method:"GET",headers:{"accept":"application/json"}});var json=await res.json();if(!json.token)throw new Error("토큰 없음");
     v2empToken=json.token;var p=decodeJWT(v2empToken);v2empName=(p&&p.name)||email;v2empCode=(p&&p.emplCode)||"";
     $("v2empName").textContent=v2empName;$("v2empCode").textContent=v2empCode||email;$("v2empAvatar").textContent=v2empName.slice(-2);$("v2empCard").classList.add("show");
     setFS(1,"done");$("searchBtn").disabled=false;
     btn.textContent="재발급";btn.disabled=false;updateLoginStatus();
     // 도크 로드
-    var ld=await fetch("https://api.escm.stg.kurly.com/api/v2/loadingdocks",{method:"GET",headers:empHeaders(v2empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
+    var ld=await fetch(getEnv().escm+"/api/v2/loadingdocks",{method:"GET",headers:empHeaders(v2empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
     docksByCenterRaw={};list.forEach(function(d){var cc=d.clusterCode||"";if(!cc)return;if(!docksByCenterRaw[cc])docksByCenterRaw[cc]=[];docksByCenterRaw[cc].push(d)});
     $("dockSection").classList.add("show");renderDockRows();
   }catch(e){alert("로그인 실패: "+e.message);btn.textContent="로그인";btn.disabled=false}}
 
 // ═══════════ RMS 로그인 ═══════════
 async function doRmsLogin(){var btn=$("rmsLoginBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
-  try{var r=await api("https://inbound-api.rms.stg.kurly.services/auth/v1/login",{method:"POST",body:{loginId:$("rmsId").value,password:$("rmsPw").value}});if(!r.data.token)throw new Error("토큰 없음");
+  try{var r=await api(getEnv().rms+"/auth/v1/login",{method:"POST",body:{loginId:$("rmsId").value,password:$("rmsPw").value}});if(!r.data.token)throw new Error("토큰 없음");
     rmsToken=r.data.token;slog("RMS 로그인 성공","ok");
-    var cl=await api("https://inbound-api.rms.stg.kurly.services/common/cluster/v1/clusters",{headers:{Authorization:"Bearer "+rmsToken}});rmsClusters=cl.data&&cl.data.clusters||[];
-    var wh=await api("https://inbound-api.rms.stg.kurly.services/common/warehouse/v1/warehouses",{headers:{Authorization:"Bearer "+rmsToken}});rmsWarehouses=wh.data&&wh.data.warehouses||[];
+    var cl=await api(getEnv().rms+"/common/cluster/v1/clusters",{headers:{Authorization:"Bearer "+rmsToken}});rmsClusters=cl.data&&cl.data.clusters||[];
+    var wh=await api(getEnv().rms+"/common/warehouse/v1/warehouses",{headers:{Authorization:"Bearer "+rmsToken}});rmsWarehouses=wh.data&&wh.data.warehouses||[];
     rmsAreas=[];rmsAreaMap={};
-    for(var i=0;i<rmsClusters.length;i++){var ar=await api("https://inbound-api.rms.stg.kurly.services/web/v1/inbound-areas?cluster="+rmsClusters[i].code+"&useYn=true",{headers:{Authorization:"Bearer "+rmsToken}});(ar.data&&ar.data.list||[]).forEach(function(a){a._cluster=rmsClusters[i].code;rmsAreas.push(a);rmsAreaMap[a.code]=a.id})}
+    for(var i=0;i<rmsClusters.length;i++){var ar=await api(getEnv().rms+"/web/v1/inbound-areas?cluster="+rmsClusters[i].code+"&useYn=true",{headers:{Authorization:"Bearer "+rmsToken}});(ar.data&&ar.data.list||[]).forEach(function(a){a._cluster=rmsClusters[i].code;rmsAreas.push(a);rmsAreaMap[a.code]=a.id})}
     slog("입고지 "+rmsAreas.length+"개 로드","ok");
     $("rmsCard").classList.add("show");$("rmsDetail").textContent="입고지 "+rmsAreas.length+"개";
     populateCapaFcDockFilters();
@@ -516,7 +668,7 @@ async function doRmsLogin(){var btn=$("rmsLoginBtn");btn.disabled=true;btn.inner
 // ═══════════ CAPA 조회 ═══════════
 async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").value;if(!df||!dt){alert("날짜 선택");return}if(!empToken){alert("임직원 로그인 필요");return}
   $("capaCheckBtn").disabled=true;$("capaCheckBtn").textContent="조회 중...";slog("CAPA 조회: "+df+" ~ "+dt,"info");
-  var r=await api("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt,{headers:{Authorization:"Bearer "+empToken}});
+  var r=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt,{headers:{Authorization:"Bearer "+empToken}});
   var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];slog("✓ "+capas.length+"건","ok");
   var byDate={};capas.forEach(function(c){var d=c.scheduledReceivingDate;if(!byDate[d])byDate[d]={};var k=c.fulfillmentCenter+"|"+c.dock;if(!byDate[d][k])byDate[d][k]={fc:c.fulfillmentCenter,dock:c.dock,slots:[]};byDate[d][k].slots.push(c)});
   var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
@@ -628,7 +780,7 @@ async function regBulkCapa(){var sel=[];document.querySelectorAll(".capaSel:chec
         monSku:skus.mon,tueSku:skus.tue,wedSku:skus.wed,thuSku:skus.thu,friSku:skus.fri,satSku:skus.sat,sunSku:skus.sun,
         monUnit:units.mon,tueUnit:units.tue,wedUnit:units.wed,thuUnit:units.thu,friUnit:units.fri,satUnit:units.sat,sunUnit:units.sun,
         xdockYn:xd==="Y"};
-      res=await api("https://inbound-api.rms.stg.kurly.services/web/v1/inbound-operation-time",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:body});
+      res=await api(getEnv().rms+"/web/v1/inbound-operation-time",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:body});
       if(res.data&&res.data.type==="ALREADY_REGISTERED_CODE"&&retryN<20){retryN++;code=(baseCode+"_"+retryN).substring(0,20);continue}
       break;
     }
@@ -650,31 +802,41 @@ async function searchGoods(){
   if(supName)q+="&supplierName="+encodeURIComponent(supName);
   if(goodsName)q+="&goodsName="+encodeURIComponent(goodsName);
   try{
-    var gr=await api("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v2/purchase-order-available-goods?"+q,{headers:{Authorization:"Bearer "+v2empToken}});
+    var gr=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-available-goods?"+q,{headers:{Authorization:"Bearer "+v2empToken}});
     allGoodsData=gr.data&&gr.data.data||[];
     if(!allGoodsData.length){$("goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px">상품 없음</div>';return}
 
     // 상세 자동 조회
     var ids=allGoodsData.map(function(g){return g.goodsId}).join(",");
-    var dr=await api("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v2/purchase-order-available-goods/detail?goodsIds="+ids+"&clusterCenters="+selectedCenters.join(","),{headers:{Authorization:"Bearer "+v2empToken}});
+    var dr=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-available-goods/detail?goodsIds="+ids+"&clusterCenters="+selectedCenters.join(","),{headers:{Authorization:"Bearer "+v2empToken}});
     allDetailData=dr.data&&dr.data.data||[];
 
     // 리스트 렌더
     selectedGoodsIdx=allGoodsData.map(function(_,i){return i});
     var html='<div style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>'+allGoodsData.length+'건</strong> 조회됨 — 발주할 상품을 선택하세요</div>';
-    html+='<label style="font-size:11px;color:var(--text2);cursor:pointer;display:block;margin-bottom:6px"><input type="checkbox" checked onchange="toggleAllGoods(this.checked)"/> 전체 선택</label>';
-    html+='<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px">';
+    html+='<div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">';
+    // 헤더
+    html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);background:var(--surface2);position:sticky;top:0">';
+    html+='<span style="width:20px"><input type="checkbox" checked onchange="toggleAllGoods(this.checked)"/></span>';
+    html+='<span style="min-width:55px">상품ID</span>';
+    html+='<span style="flex:1">상품명</span>';
+    html+='<span style="min-width:60px">공급사코드</span>';
+    html+='<span style="min-width:70px">공급사명</span>';
+    html+='<span style="min-width:50px">출고방법</span>';
+    html+='<span style="min-width:70px">입고지상세</span>';
+    html+='</div>';
     allGoodsData.forEach(function(g,i){
       var d=allDetailData[i]||{};
-      var fc=(d.receivingLocation&&d.receivingLocation.fulfillmentCenter)||"";
       var dk=(d.receivingLocation&&d.receivingLocation.dock)||"";
-      html+='<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border)">';
-      html+='<input type="checkbox" class="goodsSel" data-idx="'+i+'" checked onchange="toggleGoods('+i+',this.checked)"/>';
-      html+='<span style="min-width:60px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+g.goodsId+'</span>';
+      var rp=d.shippingProcess||g.shippingProcess||"";
+      html+='<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border)">';
+      html+='<span style="width:20px"><input type="checkbox" class="goodsSel" data-idx="'+i+'" checked onchange="toggleGoods('+i+',this.checked)"/></span>';
+      html+='<span style="min-width:55px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+g.goodsId+'</span>';
       html+='<span style="flex:1">'+g.goodsName+'</span>';
-      html+='<span style="color:var(--text3)">'+(g.supplierCode||'')+'</span>';
-      html+='<span style="color:var(--text3)">'+g.supplierName+'</span>';
-      html+='<span style="font-family:JetBrains Mono,monospace;color:var(--text3);min-width:80px">'+fc+'/'+dk+'</span>';
+      html+='<span style="color:var(--text3);min-width:60px">'+(g.supplierCode||'')+'</span>';
+      html+='<span style="color:var(--text3);min-width:70px">'+(g.supplierName||'')+'</span>';
+      html+='<span style="color:var(--text3);min-width:50px">'+rpLabel(rp)+'</span>';
+      html+='<span style="font-family:JetBrains Mono,monospace;color:var(--text3);min-width:70px">'+dk+'</span>';
       html+='</label>';
     });
     html+='</div>';
@@ -684,6 +846,13 @@ async function searchGoods(){
     $("orderOptionsCard").style.display="block";
     $("supLoginCard").style.display="block";
     $("runBtn").disabled=false;$("runBtn").textContent="선택한 "+selectedGoodsIdx.length+"건 발주 실행";
+    // 입고지 CAPA 사전 체크
+    v2CheckCapa();
+    // 출고방법 옵션 비활성화 + 기본값 요약
+    updateRpOptions("v2releaseProcess",allGoodsData,allDetailData,selectedGoodsIdx,false);
+    var rpCount={};allDetailData.forEach(function(d,i){if(selectedGoodsIdx.indexOf(i)>-1){var rp=d.shippingProcess||allGoodsData[i].shippingProcess||"";rpCount[rp]=(rpCount[rp]||0)+1}});
+    var rpSum=Object.keys(rpCount).map(function(k){return rpLabel(k)+' '+rpCount[k]+'건'}).join(', ');
+    $("v2rpSummary").textContent="현재: "+rpSum;
   }catch(e){$("goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px">'+e.message+'</div>'}
   finally{btn.disabled=false;btn.textContent="상품 조회"}
 }
@@ -699,18 +868,19 @@ function toggleGoods(i,checked){
 async function runAll(){if(!v2empToken)return;
   if(!selectedGoodsIdx.length){alert("상품을 선택하세요");return}
   if(!selectedCenters.length){alert("입고지(센터)를 선택하세요");return}
+  var v2releaseProcess=$("v2releaseProcess").value; // ""이면 상품 기본값
   $("log-area").style.display="block";$("log-list").innerHTML="";$("resultCard").style.display="none";
-  var supId=$("supLoginId").value,supPw=$("supPassword").value,sDate=$("recvDate").value||dateStr(1),qty=parseInt($("quantity").value)||1,poType=$("poType").value;
+  var supId=$("supLoginId").value,supPw=$("supPassword").value,sDate=$("recvDate").value||dateStr(1),qty=parseInt($("quantity").value)||1,poType="NORMAL";
   if(!supId||!supPw){log("공급사 로그인 정보 필요","err");return}
   var btn=$("runBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>실행 중...';
-  var today=dateStr(0);var admin="https://escm-api-admin.stg.kurly.services";var escm="https://api.escm.stg.kurly.com";
+  var today=dateStr(0);var admin=getEnv().admin;var escm=getEnv().escm;
   var selFD=[];selectedCenters.forEach(function(cc){var d=docksByCenterRaw[cc]||[];var sd=selectedDockByCenter[cc];if(sd){var f=d.find(function(x){return x.dockCode===sd});if(f)selFD.push({cc:cc,fc:f.fulfillmentCenterCode,dock:f.dockCode})}else if(d.length)selFD.push({cc:cc,fc:d[0].fulfillmentCenterCode,dock:d[0].dockCode})});
   // 선택한 상품만
   var gd=selectedGoodsIdx.map(function(i){return allGoodsData[i]});
   var dd=selectedGoodsIdx.map(function(i){return allDetailData[i]||{}});
   try{setFS(2,"active");
     log("[ 발주계획 ] 상품 "+gd.length+"건 / 센터 "+selFD.map(function(x){return x.cc+"("+x.fc+"/"+x.dock+")"}).join(", "),"info");
-    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
+    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:v2releaseProcess||d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
     var pr=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsList:items}});
     if(pr.status!==200)throw new Error("등록 실패 "+pr.status+": "+JSON.stringify(pr.data).substring(0,200));log("✓ "+items.length+"건 등록","ok");
     log("② planGoodsIds 추출...","info");var regDate=today;var email=$("v2empEmail").value;
@@ -757,7 +927,7 @@ async function runAll(){if(!v2empToken)return;
     var createdCodes=afterCodes.filter(function(c){return beforeCodes.indexOf(c)<0});
     setFS(5,"done");
     var kv=$("resultKv");kv.innerHTML="";
-    [["등록자",v2empName],["입고예정일",sDate],["발주유형",poType],["상품",gd.length+"건"],["입고지",selFD.map(function(x){return x.fc+"/"+x.dock}).join(", ")],["확정",ul.length+"건"]].forEach(function(p){kv.innerHTML+="<dt>"+p[0]+"</dt><dd>"+p[1]+"</dd>"});
+    [["등록자",v2empName],["입고예정일",sDate],["상품",gd.length+"건"],["입고지",selFD.map(function(x){return x.fc+"/"+x.dock}).join(", ")],["확정",ul.length+"건"]].forEach(function(p){kv.innerHTML+="<dt>"+p[0]+"</dt><dd>"+p[1]+"</dd>"});
     kv.innerHTML+="<dt>거래명세서</dt><dd>"+(createdCodes.length?createdCodes.join(", "):"코드 확인 필요")+"</dd>";
     $("resultCard").style.display="block";$("resultCard").scrollIntoView({behavior:"smooth"});log("✓ 완료! 거래명세서 "+createdCodes.length+"건","ok");
   }catch(e){log("❌ "+e.message,"err")}finally{btn.disabled=false;btn.textContent="전체 플로우 실행"}}
@@ -795,14 +965,14 @@ function v1SelectDock(cc,code){v1selectedDockByCenter[cc]=code;var row=$("v1dock
 async function v1EmpLogin(){
   var email=$("v1empEmail").value.trim();if(!email){alert("이메일 입력");return}
   var btn=$("v1empLoginBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
-  try{var res=await fetch("https://escm-api-admin.stg.kurly.services/api-authorization/supervisor/v1/employee/fake-signin/email/"+encodeURIComponent(email),{method:"GET",headers:{"accept":"application/json"}});
+  try{var res=await fetch(getEnv().admin+"/api-authorization/supervisor/v1/employee/fake-signin/email/"+encodeURIComponent(email),{method:"GET",headers:{"accept":"application/json"}});
     var json=await res.json();if(!json.token)throw new Error("토큰 없음");
     v1empToken=json.token;var p=decodeJWT(v1empToken);v1empName=(p&&p.name)||email;v1empCode=(p&&p.emplCode)||"";
     $("v1empName").textContent=v1empName;$("v1empCode").textContent=v1empCode||email;$("v1empAvatar").textContent=v1empName.slice(-2);$("v1empCard").classList.add("show");
     v1SetFS(1,"done");v1SetFS(2,"active");$("v1searchBtn").disabled=false;
     btn.textContent="재발급";btn.disabled=false;
     // 도크 로드
-    var ld=await fetch("https://api.escm.stg.kurly.com/api/v2/loadingdocks",{method:"GET",headers:empHeaders(v1empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
+    var ld=await fetch(getEnv().escm+"/api/v2/loadingdocks",{method:"GET",headers:empHeaders(v1empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
     v1docksByCenterRaw={};list.forEach(function(d){var cc=d.clusterCode||"";if(!cc)return;if(!v1docksByCenterRaw[cc])v1docksByCenterRaw[cc]=[];v1docksByCenterRaw[cc].push(d)});
     $("v1dockSection").classList.add("show");v1RenderDocks();
   }catch(e){alert("로그인 실패: "+e.message);btn.textContent="토큰 발급";btn.disabled=false}
@@ -818,26 +988,44 @@ async function v1SearchGoods(){
   try{
     var q="sort=REG_DESC&limit=200&currentPage=1&searchField=goodsName&searchWord="+encodeURIComponent(word)+"&onlyGoodsCode=false&supplierSearchField=supplierName&dateOptionType=REG&isFolded=false";
     if(supName)q+="&supplierSearchWord="+encodeURIComponent(supName);
-    var pgRes=await fetch("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v1/purchase-group-management/purchase-goods?"+q,{method:"GET",headers:empHeaders(v1empToken)});
+    var pgRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-goods?"+q,{method:"GET",headers:empHeaders(v1empToken)});
     var pgJson=await pgRes.json();v1AllGoods=pgJson&&pgJson.result&&pgJson.result.data||[];
     if(!v1AllGoods.length){$("v1goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px">상품 없음</div>';return}
 
     // 견적 조회
     var ids=v1AllGoods.map(function(g){return Number(g.goodsId)});
-    var gpRes=await fetch("https://api.escm.stg.kurly.com/api/v3/goods/purchase?sort=REG_DESC&limit="+ids.length+"&currentPage=1&searchField=goodsName&onlyGoodsCode=false&supplierSearchField=supplierName&goodsCodes=&approvalStatus=ORDER&useStatus=Y&isFolded=false&dateType=REG&supplierDealYn=true&goodsIds="+encodeURIComponent(ids.join(",")),{method:"GET",headers:empHeaders(v1empToken)});
+    var gpRes=await fetch(getEnv().escm+"/api/v3/goods/purchase?sort=REG_DESC&limit="+ids.length+"&currentPage=1&searchField=goodsName&onlyGoodsCode=false&supplierSearchField=supplierName&goodsCodes=&approvalStatus=ORDER&useStatus=Y&isFolded=false&dateType=REG&supplierDealYn=true&goodsIds="+encodeURIComponent(ids.join(",")),{method:"GET",headers:empHeaders(v1empToken)});
     var gpJson=await gpRes.json();v1AllDetail=gpJson&&gpJson.result&&gpJson.result.data||[];
 
     v1SelectedIdx=v1AllGoods.map(function(_,i){return i});
     var html='<div style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>'+v1AllGoods.length+'건</strong> — 발주할 상품 선택</div>';
-    html+='<label style="font-size:11px;color:var(--text2);cursor:pointer;display:block;margin-bottom:6px"><input type="checkbox" checked onchange="v1ToggleAll(this.checked)"/> 전체 선택</label>';
-    html+='<div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px">';
+    html+='<div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">';
+    // 헤더
+    html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);background:var(--surface2);position:sticky;top:0">';
+    html+='<span style="width:20px"><input type="checkbox" checked onchange="v1ToggleAll(this.checked)"/></span>';
+    html+='<span style="min-width:55px">상품ID</span>';
+    html+='<span style="flex:1">상품명</span>';
+    html+='<span style="min-width:60px">공급사코드</span>';
+    html+='<span style="min-width:70px">공급사명</span>';
+    html+='<span style="min-width:50px">출고방법</span>';
+    html+='<span style="min-width:70px">입고지상세</span>';
+    html+='</div>';
     v1AllGoods.forEach(function(g,i){
-      html+='<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border)">';
-      html+='<input type="checkbox" class="v1goodsSel" data-idx="'+i+'" checked onchange="v1ToggleGoods('+i+',this.checked)"/>';
-      html+='<span style="min-width:60px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+g.goodsId+'</span>';
+      var det=v1AllDetail[i]||{};
+      var rp=det.releaseCode||g.releaseCode||"";
+      var defDock="";
+      var rcField={"WH02":"goodsReceivings2cc","WH03":"goodsReceivings3cc","WH04":"goodsReceivings4cc","MCWH01":"goodsReceivings1mc","MCWH02":"goodsReceivings2mc"};
+      var firstCenter=v1selectedCenters[0]||"WH02";
+      var rcList=det[rcField[firstCenter]]||[];
+      if(rcList.length){var df=rcList.find(function(r){return r.defaultWarehouse})||rcList[0];defDock=df.dockCode||""}
+      html+='<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border)">';
+      html+='<span style="width:20px"><input type="checkbox" class="v1goodsSel" data-idx="'+i+'" checked onchange="v1ToggleGoods('+i+',this.checked)"/></span>';
+      html+='<span style="min-width:55px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+g.goodsId+'</span>';
       html+='<span style="flex:1">'+g.goodsName+'</span>';
-      html+='<span style="color:var(--text3)">'+(g.supplierCode||'')+'</span>';
-      html+='<span style="color:var(--text3)">'+g.supplierName+'</span>';
+      html+='<span style="color:var(--text3);min-width:60px">'+(g.supplierCode||'')+'</span>';
+      html+='<span style="color:var(--text3);min-width:70px">'+(g.supplierName||'')+'</span>';
+      html+='<span style="color:var(--text3);min-width:50px">'+rpLabel(rp)+'</span>';
+      html+='<span style="font-family:JetBrains Mono,monospace;color:var(--text3);min-width:70px">'+defDock+'</span>';
       html+='</label>';
     });
     html+='</div>';
@@ -845,6 +1033,11 @@ async function v1SearchGoods(){
     $("v1optionsCard").style.display="block";
     $("v1supLoginCard").style.display="block";
     $("v1runBtn").disabled=false;$("v1runBtn").textContent="선택한 "+v1SelectedIdx.length+"건 발주 실행";
+    // 출고방법 옵션 비활성화 + 기본값 요약
+    updateRpOptions("v1releaseProcess",v1AllGoods,v1AllDetail,v1SelectedIdx,true);
+    var rpCount={};v1AllDetail.forEach(function(d,i){if(v1SelectedIdx.indexOf(i)>-1){var rp=d.releaseCode||d.goodsReleaseCode||"";rpCount[rp]=(rpCount[rp]||0)+1}});
+    var rpSum=Object.keys(rpCount).map(function(k){return rpLabel(k)+' '+rpCount[k]+'건'}).join(', ');
+    if($("v1rpSummary"))$("v1rpSummary").textContent="현재: "+rpSum;
   }catch(e){$("v1goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px">'+e.message+'</div>'}
   finally{btn.disabled=false;btn.textContent="상품 조회"}
 }
@@ -861,6 +1054,7 @@ async function v1RunAll(){
   $("v1log-area").style.display="block";$("v1log-list").innerHTML="";$("v1resultCard").style.display="none";
   var groupName=$("v1groupName").value.trim()||"세희발주테스트";
   var boxQnty=parseInt($("v1boxQnty").value)||1;var supLoginId=$("v1supLoginId").value.trim();var supPassword=$("v1supPassword").value.trim();
+  var v1releaseProcess=$("v1releaseProcess").value;
   var estDate=$("v1recvDate").value;var recvISO=estDate?estDate+"T00:00:00.000Z":dateStr(1)+"T00:00:00.000Z";var recvDisplay=estDate||dateStr(1);
   if(!supLoginId||!supPassword){v1log("공급사 로그인 정보 필요","err");return}
   var btn=$("v1runBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>실행 중...';
@@ -891,7 +1085,7 @@ async function v1RunAll(){
             taxation:est.taxation||"TAXED",estimateType:est.estimateType||"NORMAL",price:est.price||0,taxPrice:est.taxPrice||0,totalPrice:est.totalPrice||0,
             approvalStatus:est.approvalStatus||"APPROVED",priceFromDate:est.priceFromDate||null,priceToDate:est.priceToDate||null}],
           checkCo:true,checked:false,wayPointCode:wpMap[center]||"N",shelfLifeType:g.shelfLifeType||"USE_DATE",
-          boxPerQnty:bpq,moq:g.moq||1,goodsReleaseCode:g.releaseCode||"DIRECT_DELIVERY",releaseCode:g.releaseCode||"DIRECT_DELIVERY",
+          boxPerQnty:bpq,moq:g.moq||1,goodsReleaseCode:v1releaseProcess||g.releaseCode||"DIRECT_DELIVERY",releaseCode:v1releaseProcess||g.releaseCode||"DIRECT_DELIVERY",
           mdEmployeeCode:mdCode,goodsEstimateId:est.goodsEstimateId||0,grossWeight:g.grossWeight||est.grossWeight||1,
           deliveryType:g.deliveryType||"225",orderType:"NORMAL",stockSafeDate:g.stockSafeDate||0,
           receivingEstimateDate:recvISO,normalGoodsEstimates:g.normalGoodsEstimates||[],eventGoodsEstimates:g.eventGoodsEstimates||[],
@@ -902,13 +1096,13 @@ async function v1RunAll(){
           averagePurchaseQuantity:g.averagePurchaseQuantity||null,expectedStockDay:null,mainCategoryCode:g.mainCategoryCode||null,promotionOrderAverage:0})})});
 
     v1log("② 발주그룹 등록 ("+items.length+"건)...","info");
-    var postRes=await fetch("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v1/purchase-group-management/purchase-group",{method:"POST",headers:empHeaders(v1empToken),body:JSON.stringify({purchaseGroupCode:"",purchaseGroupName:groupName,purchaseCenter:"ALL",purchaseCenterList:v1selectedCenters,orderType:"NORMAL",registrantEmployeeCode:v1empCode,registrantName:v1empName,merchandiserName:"",merchandiserNames:[],purchaseOrders:[],purchaseOrderRegisterItems:items,isReorder:false,approvalStatus:"TEMP"})});
+    var postRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-group",{method:"POST",headers:empHeaders(v1empToken),body:JSON.stringify({purchaseGroupCode:"",purchaseGroupName:groupName,purchaseCenter:"ALL",purchaseCenterList:v1selectedCenters,orderType:"NORMAL",registrantEmployeeCode:v1empCode,registrantName:v1empName,merchandiserName:"",merchandiserNames:[],purchaseOrders:[],purchaseOrderRegisterItems:items,isReorder:false,approvalStatus:"TEMP"})});
     var postJson=await postRes.json();if(!postRes.ok)throw new Error("등록 실패 "+postRes.status);
     v1log("✓ 발주그룹 등록 완료","ok");v1SetFS(2,"done");
 
     v1SetFS(3,"active");v1log("[ 발주서 생성 ]","info");
     v1log("③ 발주그룹 조회...","info");await sleep(1500);
-    var grpRes=await fetch("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v1/purchase-group-management/purchase-group?sort=REG_DESC&limit=50&currentPage=1&searchField=purchaseGroupName&searchWord="+encodeURIComponent(groupName)+"&onlyGoodsCode=false&supplierSearchField=supplierName&dateOptionType=REG&fromDate="+todayStr+"&toDate="+todayStr+"&dateFrom="+todayStr+"&dateTo="+todayStr,{method:"GET",headers:empHeaders(v1empToken)});
+    var grpRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-group?sort=REG_DESC&limit=50&currentPage=1&searchField=purchaseGroupName&searchWord="+encodeURIComponent(groupName)+"&onlyGoodsCode=false&supplierSearchField=supplierName&dateOptionType=REG&fromDate="+todayStr+"&toDate="+todayStr+"&dateFrom="+todayStr+"&dateTo="+todayStr,{method:"GET",headers:empHeaders(v1empToken)});
     var grpJson=await grpRes.json();var rows=grpJson&&grpJson.result&&grpJson.result.data||[];
     var target=rows.find(function(r){return r.purchaseGroupStatus==="AWAITING_PURCHASE"});
     if(!target)throw new Error("AWAITING_PURCHASE 없음");
@@ -916,28 +1110,28 @@ async function v1RunAll(){
     v1log("✓ 그룹 ID:"+pgId+" CODE:"+pgCode,"ok");
 
     v1log("④ 발주서 일괄생성...","info");
-    var patchRes=await fetch("https://escm-api-admin.stg.kurly.services/api-purchase/supervisor/v1/purchase-group-management/purchase-group/create-purchase-orders",{method:"PATCH",headers:empHeaders(v1empToken),body:JSON.stringify([pgId])});
+    var patchRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-group/create-purchase-orders",{method:"PATCH",headers:empHeaders(v1empToken),body:JSON.stringify([pgId])});
     if(!patchRes.ok)throw new Error("일괄생성 실패");v1log("✓ 완료","ok");await sleep(1500);
 
     v1log("⑤ 발주서 조회...","info");
-    var poRes=await fetch("https://api.escm.stg.kurly.com/api/v2/purchaseorders?sort=PURCHASE_DESC&limit=50&currentPage=1&searchField=purchaseGroupCode&searchWord="+encodeURIComponent(pgCode)+"&onlyGoodsCode=false&supplierSearchField=supplierName&goodsCodes=&purchaseOrderCodes=&purchaseOrderGroupCodes=&dateType=PURCHASE_ORDER&isFolded=false&dateFrom="+todayStr+"T00%3A00%3A00&dateTo="+todayStr+"T23%3A59%3A59",{method:"GET",headers:empHeaders(v1empToken)});
+    var poRes=await fetch(getEnv().escm+"/api/v2/purchaseorders?sort=PURCHASE_DESC&limit=50&currentPage=1&searchField=purchaseGroupCode&searchWord="+encodeURIComponent(pgCode)+"&onlyGoodsCode=false&supplierSearchField=supplierName&goodsCodes=&purchaseOrderCodes=&purchaseOrderGroupCodes=&dateType=PURCHASE_ORDER&isFolded=false&dateFrom="+todayStr+"T00%3A00%3A00&dateTo="+todayStr+"T23%3A59%3A59",{method:"GET",headers:empHeaders(v1empToken)});
     var poJson=await poRes.json();var poRows=poJson&&poJson.result&&poJson.result.data||[];
     var poIds=Array.from(new Set(poRows.map(function(r){return r.purchaseOrderId}).filter(Boolean)));
     if(!poIds.length)throw new Error("발주서 없음");v1log("✓ "+poIds.length+"개","ok");v1SetFS(3,"done");
 
     v1SetFS(4,"active");v1log("[ 공급사 로그인 ]","info");
-    var slRes=await fetch("https://api.escm.stg.kurly.com/api/v2/user/login",{method:"POST",headers:{"accept":"application/json","content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com"},body:JSON.stringify({loginId:supLoginId,password:supPassword})});
+    var slRes=await fetch(getEnv().escm+"/api/v2/user/login",{method:"POST",headers:{"accept":"application/json","content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com"},body:JSON.stringify({loginId:supLoginId,password:supPassword})});
     var slJson=await slRes.json();var v1supToken=slJson.token;if(!v1supToken)throw new Error("공급사 토큰 없음");
     v1log("✓ 공급사 로그인 완료","ok");$("v1supCardName").textContent=slJson.name||supLoginId;$("v1supCardId").textContent=supLoginId;$("v1supCard").classList.add("show");v1SetFS(4,"done");
 
     v1SetFS(5,"active");v1log("[ 발주확정 ] "+poIds.length+"건","info");
     var okCnt=0,failCnt=0;
     for(var i=0;i<poIds.length;i++){var poId=poIds[i];
-      try{var dRes=await fetch("https://api.escm.stg.kurly.com/api/v2/purchaseorders/"+poId,{method:"GET",headers:supHeaders(v1supToken)});
+      try{var dRes=await fetch(getEnv().escm+"/api/v2/purchaseorders/"+poId,{method:"GET",headers:supHeaders(v1supToken)});
         var dJson=await dRes.json();var body=dJson&&dJson.result;if(!body)throw new Error("result 없음");
         body.approvalStatus="APPROVED";body.scheduledArrivalTime="10:00 ~ 10:59";body.isChangedScheduledArrivalTime=true;body.modifyExpirationAndManufactureDateYn=true;
         if(Array.isArray(body.purchaseOrderItemDTOList)){body.purchaseOrderItemDTOList=body.purchaseOrderItemDTOList.map(function(item){return Object.assign({},item,{manufactureDate:todayDT,expirationAndManufactureDate:todayDT})})}
-        var putRes=await fetch("https://api.escm.stg.kurly.com/api/v2/purchaseorders",{method:"PUT",headers:supHeaders(v1supToken),body:JSON.stringify(body)});
+        var putRes=await fetch(getEnv().escm+"/api/v2/purchaseorders",{method:"PUT",headers:supHeaders(v1supToken),body:JSON.stringify(body)});
         if(!putRes.ok)throw new Error("PUT "+putRes.status);okCnt++;v1log("  ✓ ["+(i+1)+"/"+poIds.length+"] ID "+poId,"sub");
       }catch(e2){failCnt++;v1log("  ✗ ID "+poId+" "+e2.message,"warn")}}
     v1SetFS(5,"done");v1log("✓ 완료 — 성공 "+okCnt+" / 실패 "+failCnt,"ok");
