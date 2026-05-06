@@ -554,7 +554,9 @@ async function regBulkCapa(){var sel=[];document.querySelectorAll(".capaSel:chec
   for(var i=0;i<sel.length;i++){var k=sel[i];var cr=capaResults[k];
     var ai=rmsAreas.find(function(a){return a.code===cr.dock})||{};var areaId=ai.id||rmsAreaMap[cr.dock]||0;
     var cl=ai._cluster||"";if(!cl){var wi=rmsWarehouses.find(function(w){return w.code===cr.fc});cl=wi?wi.cluster:"CC02"}
-    var body={cluster:cl,warehouse:cr.fc,inboundAreaId:Number(areaId),code:(prefix+"_"+cr.dock+"_"+Date.now()).substring(0,20),description:"",
+    var uid=(Date.now().toString(36)+Math.random().toString(36).slice(2,6)).toUpperCase();
+    var code=(prefix+"_"+uid).substring(0,20);
+    var body={cluster:cl,warehouse:cr.fc,inboundAreaId:Number(areaId),code:code,description:"",
       startTimeSlotNumber:startSlot,endTimeSlotNumber:endSlot,startTime:startTime,endTime:endTime,
       partyType:pt,releaseGroup:rg,xdockYnValue:xd,xdockYn:xd==="Y",startDate:cr.date,endDate:cr.date};
     days.forEach(function(d){body[d+"Sku"]=skus[d];body[d+"Unit"]=units[d]});
