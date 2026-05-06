@@ -511,19 +511,14 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
   var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
   var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
 
-  // FC/Dock 필터 기반으로 조회 대상 결정 (rmsAreas 전체에서)
-  var selFcDocks=[];
-  if(dockFilter){
-    // 특정 dock 선택 → 그것만
-    var a=rmsAreas.find(function(x){return x.code===dockFilter});
-    if(a)selFcDocks.push({fc:a.warehouse,dock:a.code});
-  } else if(fcFilter){
-    // 특정 FC 선택 → 해당 FC의 모든 dock
-    rmsAreas.filter(function(x){return x.warehouse===fcFilter}).forEach(function(a){selFcDocks.push({fc:a.warehouse,dock:a.code})});
-  } else {
-    // 전체 → rmsAreas 전체
-    rmsAreas.forEach(function(a){selFcDocks.push({fc:a.warehouse,dock:a.code})});
-  }
+  // daily-capa 응답에서 FC/dock 조합 추출 + 필터 적용
+  var allFcDocks={};
+  capas.forEach(function(c){var k=c.fulfillmentCenter+"|"+c.dock;allFcDocks[k]={fc:c.fulfillmentCenter,dock:c.dock}});
+  // 필터가 있으면 필터 매칭만, 없으면 전체
+  var selFcDocks=Object.keys(allFcDocks).map(function(k){return allFcDocks[k]});
+  if(fcFilter)selFcDocks=selFcDocks.filter(function(x){return x.fc===fcFilter});
+  if(dockFilter)selFcDocks=selFcDocks.filter(function(x){return x.dock===dockFilter});
+  selFcDocks.sort(function(a,b){return(a.fc+a.dock).localeCompare(b.fc+b.dock)});
   var allDates=[];var cur=new Date(df);var end=new Date(dt);while(cur<=end){allDates.push(cur.toISOString().split("T")[0]);cur.setDate(cur.getDate()+1)}
   capaResults={};var html="";
   allDates.forEach(function(date){var dd=byDate[date]||{};html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">'+date+'</div>';
