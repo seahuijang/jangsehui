@@ -499,6 +499,7 @@ async function doRmsLogin(){var btn=$("rmsLoginBtn");btn.disabled=true;btn.inner
     for(var i=0;i<rmsClusters.length;i++){var ar=await api("https://inbound-api.rms.stg.kurly.services/web/v1/inbound-areas?cluster="+rmsClusters[i].code+"&useYn=true",{headers:{Authorization:"Bearer "+rmsToken}});(ar.data&&ar.data.list||[]).forEach(function(a){a._cluster=rmsClusters[i].code;rmsAreas.push(a);rmsAreaMap[a.code]=a.id})}
     slog("입고지 "+rmsAreas.length+"개 로드","ok");
     $("rmsCard").classList.add("show");$("rmsDetail").textContent="입고지 "+rmsAreas.length+"개";
+    populateCapaFcDockFilters();
     btn.textContent="재로그인";btn.disabled=false;updateLoginStatus();
   }catch(e){slog("실패: "+e.message,"err");btn.textContent="로그인";btn.disabled=false}}
 
@@ -511,11 +512,8 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
   var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
   var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
 
-  // daily-capa 응답에서 FC/dock 조합 추출 + 필터 적용
-  var allFcDocks={};
-  capas.forEach(function(c){var k=c.fulfillmentCenter+"|"+c.dock;allFcDocks[k]={fc:c.fulfillmentCenter,dock:c.dock}});
-  // 필터가 있으면 필터 매칭만, 없으면 전체
-  var selFcDocks=Object.keys(allFcDocks).map(function(k){return allFcDocks[k]});
+  // rmsAreas 전체 기준 (CAPA 있든 없든 표시) + 필터 적용
+  var selFcDocks=rmsAreas.map(function(a){return{fc:a.warehouse,dock:a.code}});
   if(fcFilter)selFcDocks=selFcDocks.filter(function(x){return x.fc===fcFilter});
   if(dockFilter)selFcDocks=selFcDocks.filter(function(x){return x.dock===dockFilter});
   selFcDocks.sort(function(a,b){return(a.fc+a.dock).localeCompare(b.fc+b.dock)});
