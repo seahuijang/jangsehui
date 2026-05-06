@@ -418,9 +418,15 @@ function populateCapaFcDockFilters(){
     if(!allDocks[d.fulfillmentCenterCode])allDocks[d.fulfillmentCenterCode]=[];
     allDocks[d.fulfillmentCenterCode].push(d);
   })});
+  // RMS warehouses에서 한글명 매핑
+  var whNames={};rmsWarehouses.forEach(function(w){whNames[w.code]=w.name});
   var fcSel=$("capaFcFilter");fcSel.innerHTML='<option value="">전체</option>';
-  Object.keys(allFcs).sort().forEach(function(fc){fcSel.innerHTML+='<option value="'+fc+'">'+fc+'</option>'});
+  Object.keys(allFcs).sort().forEach(function(fc){
+    var name=whNames[fc]||"";
+    fcSel.innerHTML+='<option value="'+fc+'">'+(name?name+' ('+fc+')':fc)+'</option>';
+  });
   window._capaDocksByFc=allDocks;
+  window._capaWhNames=whNames;
   updateCapaDockFilter();
 }
 
@@ -431,8 +437,8 @@ function updateCapaDockFilter(){
     window._capaDocksByFc[fc].forEach(function(d){dkSel.innerHTML+='<option value="'+d.dockCode+'">'+(d.dockName||d.dockCode)+' ('+d.dockCode+')</option>'});
   } else if(!fc){
     // 전체: 모든 dock 나열
-    Object.keys(window._capaDocksByFc||{}).forEach(function(fc2){(window._capaDocksByFc[fc2]||[]).forEach(function(d){
-      dkSel.innerHTML+='<option value="'+d.dockCode+'">'+fc2+' > '+(d.dockName||d.dockCode)+'</option>';
+    Object.keys(window._capaDocksByFc||{}).forEach(function(fc2){var wn=(window._capaWhNames||{})[fc2]||fc2;(window._capaDocksByFc[fc2]||[]).forEach(function(d){
+      dkSel.innerHTML+='<option value="'+d.dockCode+'">'+wn+' > '+(d.dockName||d.dockCode)+'</option>';
     })});
   }
 }
@@ -508,11 +514,18 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
   var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
   capaResults={};var html="";
   allDates.forEach(function(date){var dd=byDate[date]||{};html+='<div style="font-size:11px;font-weight:700;color:var(--text2);margin:14px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">'+date+'</div>';
+    // RMS warehouse 한글명
+    var _wn=window._capaWhNames||{};
     selFcDocks.forEach(function(sel){var k=sel.fc+"|"+sel.dock;var e=dd[k];var gk=date+"|"+k;
+      var fcLabel=(_wn[sel.fc]?_wn[sel.fc]+"("+sel.fc+")":sel.fc);
+      // dock 한글명: rmsAreas에서 찾기
+      var arI=rmsAreas.find(function(a){return a.code===sel.dock});
+      var dockLabel=arI?(arI.name+"("+sel.dock+")"):sel.dock;
+      var label=fcLabel+" > "+dockLabel;
       if(e&&e.slots.length>0){var filtered=e.slots.filter(function(s){if(shipF&&s.rmsShippingProcess!==shipF)return false;if(wpF!==""&&String(s.hasWaypoint)!==wpF)return false;return true});
-        if(filtered.length>0){html+='<div class="capa-item ok"><div class="capa-dot on"></div><div>'+sel.fc+'/'+sel.dock;filtered.forEach(function(s){var sh=s.rmsShippingProcess==="PARCEL"?"택배":"차량";var wp=s.hasWaypoint?"대행":"일반";html+='<div style="font-size:10px;opacity:.8">'+sh+' · '+wp+' — SKU:'+s.availableSkuCapa+'/'+s.totalSkuCapa+' Unit:'+s.availableUnitCapa+'/'+s.totalUnitCapa+'</div>'});html+='</div></div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:true}}
-        else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+sel.fc+'/'+sel.dock+' — 조건 불일치</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}}
-      else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+sel.fc+'/'+sel.dock+' — CAPA 없음</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}})});
+        if(filtered.length>0){html+='<div class="capa-item ok"><div class="capa-dot on"></div><div>'+label;filtered.forEach(function(s){var sh=s.rmsShippingProcess==="PARCEL"?"택배":"차량";var wp=s.hasWaypoint?"대행":"일반";html+='<div style="font-size:10px;opacity:.8">'+sh+' · '+wp+' — SKU:'+s.availableSkuCapa+'/'+s.totalSkuCapa+' Unit:'+s.availableUnitCapa+'/'+s.totalUnitCapa+'</div>'});html+='</div></div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:true}}
+        else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+label+' — 조건 불일치</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}}
+      else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+label+' — CAPA 없음</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}})});
   $("capaResults").innerHTML=html;
   var missing=Object.keys(capaResults).filter(function(k){return!capaResults[k].exists});
   if(missing.length>0&&rmsToken)renderCapaRegForms(missing);
@@ -545,7 +558,7 @@ function renderCapaRegForms(missingKeys){
   html+='<div class="field"><label>종료시간</label><select id="cb_et">'+timeEndOpts()+'</select></div></div>';
   html+='<p class="hint">※ 택배 선택 시 등록 시간은 자동으로 00:00~23:29 고정됩니다</p>';
 
-  html+='<div class="grid3" style="margin-bottom:10px"><div class="field"><label>판매주체</label><select id="cb_pt"><option value="1P+FBK">1P+FBK</option></select></div>';
+  html+='<div class="grid3" style="margin-bottom:10px"><div class="field"><label>판매주체</label><select id="cb_pt"><option value="1P">1P</option><option value="FBK">FBK</option><option value="1P+FBK">1P+FBK</option></select></div>';
   html+='<div class="field"><label>입고방법</label><select id="cb_rg" onchange="onCbRgChange()"><option value="CAR"'+(defShip==="CAR"?" selected":"")+'>차량</option><option value="PARCEL"'+(defShip==="PARCEL"?" selected":"")+'>택배</option></select></div>';
   html+='<div class="field"><label>입고대행</label><select id="cb_xd"><option value="N"'+(defXd==="N"?" selected":"")+'>N</option><option value="Y"'+(defXd==="Y"?" selected":"")+'>Y</option></select></div></div>';
 
