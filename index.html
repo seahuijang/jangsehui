@@ -1022,28 +1022,24 @@ async function runAll(){if(!v2empToken)return;
   var dd=selectedGoodsIdx.map(function(i){return allDetailData[i]||{}});
   try{setFS(2,"active");
     log("[ 발주계획 ] 상품 "+gd.length+"건 / 센터 "+selFD.map(function(x){return x.cc+"("+x.fc+"/"+x.dock+")"}).join(", "),"info");
-    // 등록 전 기존 planGoodsIds 스냅샷
-    log("① 기존 데이터 스냅샷...","info");var regDate=today;var email=$("v2empEmail").value;
-    var grpBefore=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/groups?purchaseOrderRegisterDateFrom="+regDate+"&purchaseOrderRegisterDateTo="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=20",{headers:{Authorization:"Bearer "+v2empToken}});
-    var gddB=grpBefore.data&&grpBefore.data.data||[];if(gddB.length)regDate=gddB[0].purchaseOrderManagerRegisterDate||regDate;
-    var ptcBefore=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=500",{headers:{Authorization:"Bearer "+v2empToken}});
-    var pdBefore=ptcBefore.data&&ptcBefore.data.data||[];if(!Array.isArray(pdBefore))pdBefore=[];
-    var beforeIds=pdBefore.map(function(i){return i.neoPurchaseOrderPlanGoodsId});
-
     // 발주계획 등록
-    log("② 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:v2releaseProcess||d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
+    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:v2releaseProcess||d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
     var pr=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsList:items}});
     if(pr.status!==200)throw new Error("등록 실패 "+pr.status+": "+JSON.stringify(pr.data).substring(0,200));log("✓ "+items.length+"건 등록","ok");
 
-    // 등록 후 → 새로 생긴 planGoodsIds만 추출 (차집합)
-    log("③ planGoodsIds 추출 (차집합)...","info");
-    var grpAfter=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/groups?purchaseOrderRegisterDateFrom="+regDate+"&purchaseOrderRegisterDateTo="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=20",{headers:{Authorization:"Bearer "+v2empToken}});
-    var gddA=grpAfter.data&&grpAfter.data.data||[];if(gddA.length)regDate=gddA[0].purchaseOrderManagerRegisterDate||regDate;
-    var ptcAfter=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=500",{headers:{Authorization:"Bearer "+v2empToken}});
-    var pdAfter=ptcAfter.data&&ptcAfter.data.data||[];if(!Array.isArray(pdAfter))pdAfter=[];
-    // 새로 생긴 것만 = after에 있고 before에 없는 것
-    var pgIds=pdAfter.filter(function(i){return beforeIds.indexOf(i.neoPurchaseOrderPlanGoodsId)<0}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
-    log("✓ planGoodsIds "+pgIds.length+"건 (전체 "+pdAfter.length+" - 기존 "+beforeIds.length+")","ok");setFS(2,"done");
+    // planGoodsIds 추출 — SCHEDULED 상태 + 이번 등록 goodsId + 입고예정일 매칭
+    log("② planGoodsIds 추출...","info");var regDate=today;var email=$("v2empEmail").value;
+    var grp=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/groups?purchaseOrderRegisterDateFrom="+regDate+"&purchaseOrderRegisterDateTo="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=20",{headers:{Authorization:"Bearer "+v2empToken}});
+    var gdd=grp.data&&grp.data.data||[];if(gdd.length)regDate=gdd[0].purchaseOrderManagerRegisterDate||regDate;
+    // SCHEDULED 상태만 조회
+    var ptc=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&neoPurchaseOrderPlanGoodsStatuses=SCHEDULED&currentPage=1&limit=500",{headers:{Authorization:"Bearer "+v2empToken}});
+    var pd=ptc.data&&ptc.data.data||[];if(!Array.isArray(pd))pd=[];
+    var rIds=gd.map(function(g){return Number(g.goodsId)});
+    // 이번 등록 goodsId + 입고예정일 매칭
+    var pgIds=pd.filter(function(i){return rIds.indexOf(Number(i.goodsId))>-1&&i.scheduledReceivingDate===sDate}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
+    // 매칭 안 되면 SCHEDULED 전체 fallback (입고예정일 무시)
+    if(!pgIds.length)pgIds=pd.filter(function(i){return rIds.indexOf(Number(i.goodsId))>-1}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
+    log("✓ planGoodsIds "+pgIds.length+"건 (SCHEDULED "+pd.length+"건 중)","ok");setFS(2,"done");
     setFS(3,"active");log("[ 발주검사 ]","info");
     await api(admin+"/api-purchase/supervisor/v2/purchase-order-inspection/selections/duplicate-check",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsIds:pgIds}});
     var ins=await api(admin+"/api-purchase/supervisor/v2/purchase-order-inspection/selections",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsIds:pgIds}});
