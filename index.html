@@ -819,6 +819,7 @@ async function searchGoods(){
     html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);background:var(--surface2);position:sticky;top:0">';
     html+='<span style="width:20px"><input type="checkbox" checked onchange="toggleAllGoods(this.checked)"/></span>';
     html+='<span style="min-width:55px">상품ID</span>';
+    html+='<span style="min-width:80px">마스터코드</span>';
     html+='<span style="flex:1">상품명</span>';
     html+='<span style="min-width:60px">공급사코드</span>';
     html+='<span style="min-width:70px">공급사명</span>';
@@ -832,6 +833,7 @@ async function searchGoods(){
       html+='<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border)">';
       html+='<span style="width:20px"><input type="checkbox" class="goodsSel" data-idx="'+i+'" checked onchange="toggleGoods('+i+',this.checked)"/></span>';
       html+='<span style="min-width:55px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+g.goodsId+'</span>';
+      html+='<span style="min-width:80px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+(g.masterCode||'')+'</span>';
       html+='<span style="flex:1">'+g.goodsName+'</span>';
       html+='<span style="color:var(--text3);min-width:60px">'+(g.supplierCode||'')+'</span>';
       html+='<span style="color:var(--text3);min-width:70px">'+(g.supplierName||'')+'</span>';
@@ -928,6 +930,9 @@ async function runAll(){if(!v2empToken)return;
     setFS(5,"done");
     var kv=$("resultKv");kv.innerHTML="";
     [["등록자",v2empName],["입고예정일",sDate],["상품",gd.length+"건"],["입고지",selFD.map(function(x){return x.fc+"/"+x.dock}).join(", ")],["확정",ul.length+"건"]].forEach(function(p){kv.innerHTML+="<dt>"+p[0]+"</dt><dd>"+p[1]+"</dd>"});
+    // 상품 ID + 마스터코드
+    var goodsInfo=gd.map(function(g){return g.goodsId+"("+(g.masterCode||"-")+")"}).join(", ");
+    kv.innerHTML+="<dt>상품목록</dt><dd>"+goodsInfo+"</dd>";
     kv.innerHTML+="<dt>거래명세서</dt><dd>"+(createdCodes.length?createdCodes.join(", "):"코드 확인 필요")+"</dd>";
     $("resultCard").style.display="block";$("resultCard").scrollIntoView({behavior:"smooth"});log("✓ 완료! 거래명세서 "+createdCodes.length+"건","ok");
   }catch(e){log("❌ "+e.message,"err")}finally{btn.disabled=false;btn.textContent="전체 플로우 실행"}}
@@ -1004,6 +1009,7 @@ async function v1SearchGoods(){
     html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);background:var(--surface2);position:sticky;top:0">';
     html+='<span style="width:20px"><input type="checkbox" checked onchange="v1ToggleAll(this.checked)"/></span>';
     html+='<span style="min-width:55px">상품ID</span>';
+    html+='<span style="min-width:80px">마스터코드</span>';
     html+='<span style="flex:1">상품명</span>';
     html+='<span style="min-width:60px">공급사코드</span>';
     html+='<span style="min-width:70px">공급사명</span>';
@@ -1021,6 +1027,7 @@ async function v1SearchGoods(){
       html+='<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border)">';
       html+='<span style="width:20px"><input type="checkbox" class="v1goodsSel" data-idx="'+i+'" checked onchange="v1ToggleGoods('+i+',this.checked)"/></span>';
       html+='<span style="min-width:55px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+g.goodsId+'</span>';
+      html+='<span style="min-width:80px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+(g.goodsCode||g.masterCode||'')+'</span>';
       html+='<span style="flex:1">'+g.goodsName+'</span>';
       html+='<span style="color:var(--text3);min-width:60px">'+(g.supplierCode||'')+'</span>';
       html+='<span style="color:var(--text3);min-width:70px">'+(g.supplierName||'')+'</span>';
