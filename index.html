@@ -157,6 +157,30 @@ input[readonly]{opacity:.6}
 .divider{height:1px;background:var(--border);margin:16px 0}
 
 @media(max-width:700px){.grid2,.grid3,.grid4{grid-template-columns:1fr}.login-row{flex-direction:column}}
+
+/* 거래명세서 병합 모달 */
+.merge-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:100;justify-content:center;align-items:center}
+.merge-overlay.show{display:flex}
+.merge-modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:24px;width:460px;max-width:90vw;max-height:80vh;overflow-y:auto}
+.merge-modal h3{font-size:15px;font-weight:700;color:var(--primary-light);margin-bottom:16px}
+.merge-modal .desc{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6}
+.merge-opt{display:flex;gap:12px;margin-bottom:16px}
+.merge-opt label{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 12px;border:2px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;text-align:center}
+.merge-opt label:hover{border-color:var(--text3)}
+.merge-opt input[type=radio]{display:none}
+.merge-opt input[type=radio]:checked+label{border-color:var(--primary);background:var(--primary-dim)}
+.merge-opt .opt-icon{font-size:24px}
+.merge-opt .opt-title{font-size:13px;font-weight:600;color:var(--text)}
+.merge-opt .opt-desc{font-size:11px;color:var(--text2);line-height:1.4}
+.merge-exist-list{margin-bottom:16px;max-height:150px;overflow-y:auto}
+.merge-exist-list table{width:100%;font-size:12px;border-collapse:collapse}
+.merge-exist-list th{background:var(--surface2);color:var(--text2);padding:6px 8px;text-align:left;font-weight:500}
+.merge-exist-list td{padding:6px 8px;border-top:1px solid var(--border);color:var(--text)}
+.merge-btns{display:flex;gap:8px;justify-content:flex-end}
+.merge-btns button{padding:8px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:none}
+.merge-btns .btn-cancel{background:var(--surface2);color:var(--text2)}
+.merge-btns .btn-confirm{background:var(--primary);color:#fff}
+.merge-btns .btn-confirm:disabled{opacity:.4;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -1068,14 +1092,25 @@ async function runAll(){if(!v2empToken)return;
     var cd=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/particular-group?scheduledReceivingDate="+sDate+"&sortType=FULFILLMENT_CENTER_ASC",{headers:{Authorization:"Bearer "+supToken}});
     var cIds=(cd.data&&cd.data.data&&cd.data.data.goodsList||[]).filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="CONFIRMED"}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
     var mc=await api(escm+"/api-purchase/v2/purchase-order-statement/selections/merge-check",{method:"POST",headers:{Authorization:"Bearer "+supToken},body:{neoPurchaseOrderPlanGoodsIds:cIds}});
-    var mCodes=[];(mc.data&&mc.data.data||[]).forEach(function(g){(g.statements||[]).forEach(function(s){if(mCodes.indexOf(s.neoPurchaseOrderStatementCode)<0)mCodes.push(s.neoPurchaseOrderStatementCode)})});
+    var mCodes=[];var existStatements=[];
+    (mc.data&&mc.data.data||[]).forEach(function(g){(g.statements||[]).forEach(function(s){if(mCodes.indexOf(s.neoPurchaseOrderStatementCode)<0){mCodes.push(s.neoPurchaseOrderStatementCode);existStatements.push({code:s.neoPurchaseOrderStatementCode,goodsCount:s.goodsCount||s.neoPurchaseOrderPlanGoodsCount||"-",status:s.neoPurchaseOrderStatementStatus||"-"})}})});
+
+    // 병합 가능한 기존 거래명세서가 있으면 사용자에게 선택 요청
+    var mergeMode="new";
+    if(mCodes.length){
+      log("기존 거래명세서 "+mCodes.length+"건 발견 → 병합/신규 선택 대기...","info");
+      mergeMode=await showMergeModal(existStatements,cIds);
+      if(!mergeMode)throw new Error("거래명세서 생성이 취소되었습니다.");
+      log("→ "+(mergeMode==="merge"?"기존 병합":"신규 생성")+" 선택","ok");
+    }else{log("기존 거래명세서 없음 → 신규 생성","info")}
+    var selectedMCodes=mergeMode==="merge"?mCodes:[];
 
     // 생성 전 거래명세서 코드 스냅샷
     var beforeRes=await api(escm+"/api-purchase/v2/purchase-order-statement?scheduledReceivingDateFrom="+sDate+"&scheduledReceivingDateTo="+sDate+"&currentPage=1&limit=200",{headers:{Authorization:"Bearer "+supToken}});
     var beforeCodes=(beforeRes.data&&beforeRes.data.data||[]).map(function(s){return s.neoPurchaseOrderStatementCode});
 
     // 확정서 생성
-    await api(escm+"/api-purchase/v2/purchase-order-statement/selections",{method:"POST",headers:{Authorization:"Bearer "+supToken},body:{neoPurchaseOrderPlanGoodsIds:cIds,selectedNeoPurchaseOrderStatementCodes:mCodes}});
+    await api(escm+"/api-purchase/v2/purchase-order-statement/selections",{method:"POST",headers:{Authorization:"Bearer "+supToken},body:{neoPurchaseOrderPlanGoodsIds:cIds,selectedNeoPurchaseOrderStatementCodes:selectedMCodes}});
 
     // 생성 후 거래명세서 코드 스냅샷
     await sleep(500);
@@ -1309,6 +1344,56 @@ async function v1RunAll(){
 // V1 초기화
 v1InitCenters();v1SetSkip(false);
 document.addEventListener("DOMContentLoaded",function(){$("v1recvDate").value=dateStr(1)});
+// 거래명세서 병합 모달
+function showMergeModal(existingStatements,cIds){
+  return new Promise(function(resolve){
+    var ov=$("mergeOverlay"),list=$("mergeExistList"),confirmBtn=$("mergeConfirmBtn");
+    // 기존 거래명세서 목록 표시
+    if(existingStatements.length){
+      var html="<table><tr><th>거래명세서 코드</th><th>상품 수</th><th>상태</th></tr>";
+      existingStatements.forEach(function(s){html+="<tr><td>"+s.code+"</td><td>"+(s.goodsCount||"-")+"</td><td>"+(s.status||"-")+"</td></tr>"});
+      html+="</table>";list.innerHTML=html;list.style.display="block";
+    }else{list.style.display="none"}
+    // 기존 없으면 신규만 선택 가능
+    var mergeRadio=$("mergeOptMerge");
+    if(!existingStatements.length){mergeRadio.disabled=true;$("mergeOptNew").checked=true}else{mergeRadio.disabled=false}
+    confirmBtn.disabled=false;
+    ov.classList.add("show");
+    confirmBtn.onclick=function(){
+      var mode=$("mergeOptMerge").checked?"merge":"new";
+      ov.classList.remove("show");resolve(mode);
+    };
+    $("mergeCancelBtn").onclick=function(){ov.classList.remove("show");resolve(null)};
+  });
+}
 </script>
+
+<!-- 거래명세서 병합 선택 모달 -->
+<div class="merge-overlay" id="mergeOverlay">
+<div class="merge-modal">
+  <h3>거래명세서 생성 방식 선택</h3>
+  <div class="desc">확정된 발주 상품의 거래명세서를 생성합니다.<br/>기존 거래명세서가 있는 경우 병합하거나, 신규로 생성할 수 있습니다.</div>
+  <div class="merge-exist-list" id="mergeExistList"></div>
+  <div class="merge-opt">
+    <input type="radio" name="mergeMode" id="mergeOptNew" value="new" checked/>
+    <label for="mergeOptNew">
+      <span class="opt-icon">📄</span>
+      <span class="opt-title">신규 생성</span>
+      <span class="opt-desc">새로운 거래명세서를<br/>생성합니다</span>
+    </label>
+    <input type="radio" name="mergeMode" id="mergeOptMerge" value="merge"/>
+    <label for="mergeOptMerge">
+      <span class="opt-icon">🔗</span>
+      <span class="opt-title">기존 병합</span>
+      <span class="opt-desc">기존 거래명세서에<br/>병합합니다</span>
+    </label>
+  </div>
+  <div class="merge-btns">
+    <button class="btn-cancel" id="mergeCancelBtn">취소</button>
+    <button class="btn-confirm" id="mergeConfirmBtn">확인</button>
+  </div>
+</div>
+</div>
+
 </body>
 </html>
