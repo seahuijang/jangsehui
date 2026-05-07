@@ -1095,8 +1095,9 @@ async function runAll(){if(!v2empToken)return;
     var cd=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/particular-group?scheduledReceivingDate="+sDate+"&sortType=FULFILLMENT_CENTER_ASC",{headers:{Authorization:"Bearer "+supToken}});
     var cIds=(cd.data&&cd.data.data&&cd.data.data.goodsList||[]).filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="CONFIRMED"}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
     var mc=await api(escm+"/api-purchase/v2/purchase-order-statement/selections/merge-check",{method:"POST",headers:{Authorization:"Bearer "+supToken},body:{neoPurchaseOrderPlanGoodsIds:cIds}});
-    var mCodes=[];var existStatements=[];
-    (mc.data&&mc.data.data||[]).forEach(function(g){(g.statements||[]).forEach(function(s){if(mCodes.indexOf(s.neoPurchaseOrderStatementCode)<0){mCodes.push(s.neoPurchaseOrderStatementCode);existStatements.push({code:s.neoPurchaseOrderStatementCode,goodsCount:s.goodsCount||s.neoPurchaseOrderPlanGoodsCount||"-",status:s.neoPurchaseOrderStatementStatus||"-"})}})});
+    log("[DEBUG] merge-check 응답: "+JSON.stringify(mc.data).substring(0,500),"info");
+    var mCodes=[];var existStatements=[];var mcData=mc.data&&mc.data.data||mc.data||[];if(!Array.isArray(mcData))mcData=mcData.goods||mcData.goodsList||mcData.statements||mcData.content||[];if(!Array.isArray(mcData))mcData=[];
+    mcData.forEach(function(g){var stmts=g.statements||g.neoPurchaseOrderStatements||[];if(!Array.isArray(stmts)&&g.neoPurchaseOrderStatementCode){stmts=[g]};stmts.forEach(function(s){var code=s.neoPurchaseOrderStatementCode||s.statementCode||s.code;if(code&&mCodes.indexOf(code)<0){mCodes.push(code);existStatements.push({code:code,goodsCount:s.goodsCount||s.neoPurchaseOrderPlanGoodsCount||s.count||"-",status:s.neoPurchaseOrderStatementStatus||s.status||"-"})}})});
 
     // 병합 가능한 기존 거래명세서가 있으면 사용자에게 선택 요청
     var selectedMCodes=[];
