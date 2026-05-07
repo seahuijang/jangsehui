@@ -176,6 +176,9 @@ input[readonly]{opacity:.6}
 .merge-exist-list table{width:100%;font-size:12px;border-collapse:collapse}
 .merge-exist-list th{background:var(--surface2);color:var(--text2);padding:6px 8px;text-align:left;font-weight:500}
 .merge-exist-list td{padding:6px 8px;border-top:1px solid var(--border);color:var(--text)}
+.merge-code-chk{width:16px;height:16px;accent-color:var(--primary);cursor:pointer}
+.merge-code-chk:disabled{opacity:.3;cursor:not-allowed}
+.merge-exist-list label{cursor:pointer}
 .merge-btns{display:flex;gap:8px;justify-content:flex-end}
 .merge-btns button{padding:8px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:none}
 .merge-btns .btn-cancel{background:var(--surface2);color:var(--text2)}
@@ -1096,14 +1099,14 @@ async function runAll(){if(!v2empToken)return;
     (mc.data&&mc.data.data||[]).forEach(function(g){(g.statements||[]).forEach(function(s){if(mCodes.indexOf(s.neoPurchaseOrderStatementCode)<0){mCodes.push(s.neoPurchaseOrderStatementCode);existStatements.push({code:s.neoPurchaseOrderStatementCode,goodsCount:s.goodsCount||s.neoPurchaseOrderPlanGoodsCount||"-",status:s.neoPurchaseOrderStatementStatus||"-"})}})});
 
     // 병합 가능한 기존 거래명세서가 있으면 사용자에게 선택 요청
-    var mergeMode="new";
+    var selectedMCodes=[];
     if(mCodes.length){
       log("기존 거래명세서 "+mCodes.length+"건 발견 → 병합/신규 선택 대기...","info");
-      mergeMode=await showMergeModal(existStatements,cIds);
-      if(!mergeMode)throw new Error("거래명세서 생성이 취소되었습니다.");
-      log("→ "+(mergeMode==="merge"?"기존 병합":"신규 생성")+" 선택","ok");
+      var choice=await showMergeModal(existStatements,cIds);
+      if(!choice)throw new Error("거래명세서 생성이 취소되었습니다.");
+      selectedMCodes=choice.codes;
+      log("→ "+(choice.mode==="merge"?"기존 병합 ("+selectedMCodes.join(", ")+")":"신규 생성")+" 선택","ok");
     }else{log("기존 거래명세서 없음 → 신규 생성","info")}
-    var selectedMCodes=mergeMode==="merge"?mCodes:[];
 
     // 생성 전 거래명세서 코드 스냅샷
     var beforeRes=await api(escm+"/api-purchase/v2/purchase-order-statement?scheduledReceivingDateFrom="+sDate+"&scheduledReceivingDateTo="+sDate+"&currentPage=1&limit=200",{headers:{Authorization:"Bearer "+supToken}});
@@ -1348,20 +1351,33 @@ document.addEventListener("DOMContentLoaded",function(){$("v1recvDate").value=da
 function showMergeModal(existingStatements,cIds){
   return new Promise(function(resolve){
     var ov=$("mergeOverlay"),list=$("mergeExistList"),confirmBtn=$("mergeConfirmBtn");
-    // 기존 거래명세서 목록 표시
+    // 기존 거래명세서 목록을 체크박스로 표시
     if(existingStatements.length){
-      var html="<table><tr><th>거래명세서 코드</th><th>상품 수</th><th>상태</th></tr>";
-      existingStatements.forEach(function(s){html+="<tr><td>"+s.code+"</td><td>"+(s.goodsCount||"-")+"</td><td>"+(s.status||"-")+"</td></tr>"});
+      var html="<table><tr><th></th><th>거래명세서 코드</th><th>상품 수</th><th>상태</th></tr>";
+      existingStatements.forEach(function(s,i){html+="<tr><td><input type='checkbox' class='merge-code-chk' value='"+s.code+"' id='mchk"+i+"'/></td><td><label for='mchk"+i+"'>"+s.code+"</label></td><td>"+(s.goodsCount||"-")+"</td><td>"+(s.status||"-")+"</td></tr>"});
       html+="</table>";list.innerHTML=html;list.style.display="block";
     }else{list.style.display="none"}
+    // 모드 전환 시 체크박스 활성/비활성
+    function updateChkState(){
+      var isMerge=$("mergeOptMerge").checked;
+      var chks=list.querySelectorAll(".merge-code-chk");
+      chks.forEach(function(c){c.disabled=!isMerge;if(!isMerge)c.checked=false});
+    }
+    $("mergeOptNew").onchange=updateChkState;
+    $("mergeOptMerge").onchange=function(){updateChkState();var chks=list.querySelectorAll(".merge-code-chk");if(chks.length===1)chks[0].checked=true};
     // 기존 없으면 신규만 선택 가능
-    var mergeRadio=$("mergeOptMerge");
-    if(!existingStatements.length){mergeRadio.disabled=true;$("mergeOptNew").checked=true}else{mergeRadio.disabled=false}
+    if(!existingStatements.length){$("mergeOptMerge").disabled=true;$("mergeOptNew").checked=true}else{$("mergeOptMerge").disabled=false}
+    $("mergeOptNew").checked=true;updateChkState();
     confirmBtn.disabled=false;
     ov.classList.add("show");
     confirmBtn.onclick=function(){
-      var mode=$("mergeOptMerge").checked?"merge":"new";
-      ov.classList.remove("show");resolve(mode);
+      if($("mergeOptMerge").checked){
+        var sel=[];list.querySelectorAll(".merge-code-chk:checked").forEach(function(c){sel.push(c.value)});
+        if(!sel.length){alert("병합할 거래명세서를 선택해주세요.");return}
+        ov.classList.remove("show");resolve({mode:"merge",codes:sel});
+      }else{
+        ov.classList.remove("show");resolve({mode:"new",codes:[]});
+      }
     };
     $("mergeCancelBtn").onclick=function(){ov.classList.remove("show");resolve(null)};
   });
