@@ -1027,19 +1027,28 @@ async function runAll(){if(!v2empToken)return;
     var pr=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsList:items}});
     if(pr.status!==200)throw new Error("등록 실패 "+pr.status+": "+JSON.stringify(pr.data).substring(0,200));log("✓ "+items.length+"건 등록","ok");
 
-    // planGoodsIds 추출 — SCHEDULED 상태 + 이번 등록 goodsId + 입고예정일 매칭
+    // planGoodsIds 추출 — 등록 후 반영 대기 + 재시도
     log("② planGoodsIds 추출...","info");var regDate=today;var email=$("v2empEmail").value;
-    var grp=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/groups?purchaseOrderRegisterDateFrom="+regDate+"&purchaseOrderRegisterDateTo="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=20",{headers:{Authorization:"Bearer "+v2empToken}});
-    var gdd=grp.data&&grp.data.data||[];if(gdd.length)regDate=gdd[0].purchaseOrderManagerRegisterDate||regDate;
-    // SCHEDULED 상태만 조회
-    var ptc=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&neoPurchaseOrderPlanGoodsStatuses=SCHEDULED&currentPage=1&limit=500",{headers:{Authorization:"Bearer "+v2empToken}});
-    var pd=ptc.data&&ptc.data.data||[];if(!Array.isArray(pd))pd=[];
-    var rIds=gd.map(function(g){return Number(g.goodsId)});
-    // 이번 등록 goodsId + 입고예정일 매칭
-    var pgIds=pd.filter(function(i){return rIds.indexOf(Number(i.goodsId))>-1&&i.scheduledReceivingDate===sDate}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
-    // 매칭 안 되면 SCHEDULED 전체 fallback (입고예정일 무시)
-    if(!pgIds.length)pgIds=pd.filter(function(i){return rIds.indexOf(Number(i.goodsId))>-1}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
+    var rIds=gd.map(function(g){return Number(g.goodsId)});var pgIds=[];var pd=[];
+    for(var _retry=0;_retry<5;_retry++){
+      if(_retry>0)log("   재시도 "+_retry+"/4...","info");
+      await sleep(_retry===0?1500:2000);
+      var grp=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/groups?purchaseOrderRegisterDateFrom="+regDate+"&purchaseOrderRegisterDateTo="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=20",{headers:{Authorization:"Bearer "+v2empToken}});
+      var gdd=grp.data&&grp.data.data;if(gdd&&!Array.isArray(gdd))gdd=gdd.content||[];if(!Array.isArray(gdd))gdd=[];
+      if(gdd.length)regDate=gdd[0].purchaseOrderManagerRegisterDate||regDate;
+      // SCHEDULED 상태만 조회
+      var ptc=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&neoPurchaseOrderPlanGoodsStatuses=SCHEDULED&currentPage=1&limit=500",{headers:{Authorization:"Bearer "+v2empToken}});
+      // 응답 구조 유연 파싱: data.data가 배열 or {goodsList:[...]} or {content:[...]}
+      var _raw=ptc.data&&ptc.data.data;pd=Array.isArray(_raw)?_raw:(_raw&&(_raw.goodsList||_raw.content||_raw.goods||[]));if(!Array.isArray(pd))pd=[];
+      log("   응답 "+pd.length+"건 (raw keys: "+JSON.stringify(Object.keys(_raw||{})).substring(0,100)+")","info");
+      // 이번 등록 goodsId + 입고예정일 매칭
+      pgIds=pd.filter(function(i){return rIds.indexOf(Number(i.goodsId))>-1&&i.scheduledReceivingDate===sDate}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
+      // 매칭 안 되면 goodsId만으로 fallback
+      if(!pgIds.length)pgIds=pd.filter(function(i){return rIds.indexOf(Number(i.goodsId))>-1}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
+      if(pgIds.length>0)break;
+    }
     log("✓ planGoodsIds "+pgIds.length+"건 (SCHEDULED "+pd.length+"건 중)","ok");setFS(2,"done");
+    if(!pgIds.length)throw new Error("SCHEDULED 항목을 찾을 수 없습니다. 발주계획은 등록되었으나 조회가 안 됩니다. 잠시 후 재시도해주세요.");
     setFS(3,"active");log("[ 발주검사 ]","info");
     await api(admin+"/api-purchase/supervisor/v2/purchase-order-inspection/selections/duplicate-check",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsIds:pgIds}});
     var ins=await api(admin+"/api-purchase/supervisor/v2/purchase-order-inspection/selections",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsIds:pgIds}});
