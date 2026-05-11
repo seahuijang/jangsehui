@@ -309,7 +309,7 @@ input[readonly]{opacity:.6}
       <div class="dock-label">도크(입고지상세) 선택</div>
       <div class="dock-rows" id="dockRows"><span style="font-size:12px;color:var(--text3)">로그인 후 로드</span></div>
     </div>
-    <div class="grid2" style="margin-top:16px">
+    <div class="grid3" style="margin-top:16px">
       <div class="field">
         <label>출고방법 (ReleaseProcess)</label>
         <select id="v2releaseProcess" onchange="onV2RpChange()">
@@ -317,6 +317,14 @@ input[readonly]{opacity:.6}
           <option value="PARCEL">택배로 변경</option>
         </select>
         <div id="v2rpSummary" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label>경유센터 여부 (Waypoint)</label>
+        <select id="v2waypoint" onchange="onV2WaypointChange()">
+          <option value="">상품 기본값 유지</option>
+          <option value="Y">경유 (Y)</option>
+          <option value="N">직납 (N)</option>
+        </select>
       </div>
       <div class="field">
         <label>재고 증량 여부 (skipApplyStock)</label>
@@ -408,7 +416,7 @@ input[readonly]{opacity:.6}
       <div class="dock-label">도크(하차장) 선택</div>
       <div class="dock-rows" id="v1dockRows"><span style="font-size:12px;color:var(--text3)">로그인 후 로드</span></div>
     </div>
-    <div class="grid2" style="margin-top:16px">
+    <div class="grid3" style="margin-top:16px">
       <div class="field">
         <label>출고방법 (ReleaseProcess)</label>
         <select id="v1releaseProcess" onchange="onV1RpChange()">
@@ -416,6 +424,14 @@ input[readonly]{opacity:.6}
           <option value="PARCEL">택배로 변경</option>
         </select>
         <div id="v1rpSummary" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
+      </div>
+      <div class="field">
+        <label>경유센터 여부 (Waypoint)</label>
+        <select id="v1waypoint">
+          <option value="">상품 기본값 유지</option>
+          <option value="Y">경유 (Y)</option>
+          <option value="N">직납 (N)</option>
+        </select>
       </div>
       <div class="field">
         <label>재고 증량 여부</label>
@@ -738,6 +754,7 @@ function onV2RpChange(){
   if(rp==="PARCEL")v2CheckCapa("PARCEL");
   else v2CheckCapa();
 }
+function onV2WaypointChange(){v2CheckCapa()}
 function onV1RpChange(){/* V1은 CAPA 체크 없음 */}
 
 async function v2CheckCapa(shipFilter){
@@ -1038,6 +1055,7 @@ async function runAll(){if(!v2empToken)return;
   if(!selectedGoodsIdx.length){alert("상품을 선택하세요");return}
   if(!selectedCenters.length){alert("입고지(센터)를 선택하세요");return}
   var v2releaseProcess=$("v2releaseProcess").value; // ""이면 상품 기본값
+  var v2waypointOverride=$("v2waypoint").value; // ""이면 상품 기본값
   $("log-area").style.display="block";$("log-list").innerHTML="";$("resultCard").style.display="none";
   var supId=$("supLoginId").value,supPw=$("supPassword").value,sDate=$("recvDate").value||dateStr(1),qty=parseInt($("quantity").value)||1,poType="NORMAL";
   if(!supId||!supPw){log("공급사 로그인 정보 필요","err");return}
@@ -1050,7 +1068,7 @@ async function runAll(){if(!v2empToken)return;
   try{setFS(2,"active");
     log("[ 발주계획 ] 상품 "+gd.length+"건 / 센터 "+selFD.map(function(x){return x.cc+"("+x.fc+"/"+x.dock+")"}).join(", "),"info");
     // 발주계획 등록
-    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:v2releaseProcess||d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
+    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:v2waypointOverride||d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:v2releaseProcess||d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
     var pr=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsList:items}});
     if(pr.status!==200)throw new Error("등록 실패 "+pr.status+": "+JSON.stringify(pr.data).substring(0,200));log("✓ "+items.length+"건 등록","ok");
 
@@ -1262,6 +1280,7 @@ async function v1RunAll(){
   var groupName=$("v1groupName").value.trim()||"세희발주테스트";
   var boxQnty=parseInt($("v1boxQnty").value)||1;var supLoginId=$("v1supLoginId").value.trim();var supPassword=$("v1supPassword").value.trim();
   var v1releaseProcess=$("v1releaseProcess").value;
+  var v1waypointOverride=$("v1waypoint").value; // ""이면 상품 기본값
   var estDate=$("v1recvDate").value;var recvISO=estDate?estDate+"T00:00:00.000Z":dateStr(1)+"T00:00:00.000Z";var recvDisplay=estDate||dateStr(1);
   if(!supLoginId||!supPassword){v1log("공급사 로그인 정보 필요","err");return}
   var btn=$("v1runBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>실행 중...';
@@ -1291,7 +1310,7 @@ async function v1RunAll(){
             netWeight:est.netWeight||g.netWeight||1,grossWeight:est.grossWeight||g.grossWeight||1,unit:est.unit||g.unit||"EA",boxPerQnty:bpq,
             taxation:est.taxation||"TAXED",estimateType:est.estimateType||"NORMAL",price:est.price||0,taxPrice:est.taxPrice||0,totalPrice:est.totalPrice||0,
             approvalStatus:est.approvalStatus||"APPROVED",priceFromDate:est.priceFromDate||null,priceToDate:est.priceToDate||null}],
-          checkCo:true,checked:false,wayPointCode:wpMap[center]||"N",shelfLifeType:g.shelfLifeType||"USE_DATE",
+          checkCo:true,checked:false,wayPointCode:v1waypointOverride||wpMap[center]||"N",shelfLifeType:g.shelfLifeType||"USE_DATE",
           boxPerQnty:bpq,moq:g.moq||1,goodsReleaseCode:v1releaseProcess||g.releaseCode||"DIRECT_DELIVERY",releaseCode:v1releaseProcess||g.releaseCode||"DIRECT_DELIVERY",
           mdEmployeeCode:mdCode,goodsEstimateId:est.goodsEstimateId||0,grossWeight:g.grossWeight||est.grossWeight||1,
           deliveryType:g.deliveryType||"225",orderType:"NORMAL",stockSafeDate:g.stockSafeDate||0,
