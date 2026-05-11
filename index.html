@@ -754,7 +754,7 @@ function onV2RpChange(){
   if(rp==="PARCEL")v2CheckCapa("PARCEL");
   else v2CheckCapa();
 }
-function onV2WaypointChange(){v2CheckCapa()}
+function onV2WaypointChange(){var rp=$("v2releaseProcess").value;if(rp==="PARCEL")v2CheckCapa("PARCEL");else v2CheckCapa()}
 function onV1RpChange(){/* V1은 CAPA 체크 없음 */}
 
 async function v2CheckCapa(shipFilter){
@@ -771,6 +771,9 @@ async function v2CheckCapa(shipFilter){
   var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];
   // shipFilter가 있으면 해당 출고방법 CAPA만 체크
   if(shipFilter)capas=capas.filter(function(c){return c.rmsShippingProcess===shipFilter});
+  // 경유센터 필터: Y면 경유 CAPA만, N이면 직납 CAPA만
+  var wpVal=$("v2waypoint").value;
+  if(wpVal)capas=capas.filter(function(c){return wpVal==="Y"?c.hasWaypoint:!c.hasWaypoint});
   var capaMap={};capas.forEach(function(c){var k=c.fulfillmentCenter+"|"+c.dock;if(!capaMap[k])capaMap[k]=[];capaMap[k].push(c)});
   // 매칭
   var missing=[];
@@ -778,7 +781,8 @@ async function v2CheckCapa(shipFilter){
   if(missing.length>0){
     var whNames=window._capaWhNames||{};
     var html='<div class="card" style="border-color:var(--red);margin-bottom:14px">';
-    var filterLabel=shipFilter?rpLabel(shipFilter)+" ":"";
+    var wpLabel=wpVal?(wpVal==="Y"?"경유":"직납")+" ":"";
+    var filterLabel=(wpLabel)+(shipFilter?rpLabel(shipFilter)+" ":"");
     html+='<div style="color:var(--red);font-size:13px;font-weight:600;margin-bottom:8px">⚠ '+filterLabel+'CAPA 없는 입고지가 있습니다</div>';
     missing.forEach(function(m){
       var wn=whNames[m.fc]||m.fc;var an=(rmsAreas.find(function(a){return a.code===m.dock})||{}).name||m.dock;
