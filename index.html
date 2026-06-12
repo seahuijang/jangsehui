@@ -857,9 +857,11 @@ async function doRmsLogin(){var btn=$("rmsLoginBtn");btn.disabled=true;btn.inner
 async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").value;if(!df||!dt){alert("날짜 선택");return}if(!empToken){alert("임직원 로그인 필요");return}
   $("capaCheckBtn").disabled=true;$("capaCheckBtn").textContent="조회 중...";
   var shipF=$("capaShipFilter").value;
-  slog("CAPA 조회: "+df+" ~ "+dt+" ("+( shipF==="CAR"?"차량":"택배")+")","info");
-  var r=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt+"&shippingProcess="+shipF,{headers:{Authorization:"Bearer "+empToken}});
-  var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];slog("✓ "+capas.length+"건","ok");
+  slog("CAPA 조회: "+df+" ~ "+dt+" ("+(shipF==="CAR"?"차량":"택배")+")","info");
+  var r=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt,{headers:{Authorization:"Bearer "+empToken}});
+  var _allCapas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];
+  var capas=_allCapas.filter(function(c){return c.rmsShippingProcess===shipF});
+  slog("✓ 전체 "+_allCapas.length+"건 중 "+(shipF==="CAR"?"차량":"택배")+" "+capas.length+"건","ok");
   var byDate={};capas.forEach(function(c){var d=c.scheduledReceivingDate;if(!byDate[d])byDate[d]={};var k=c.fulfillmentCenter+"|"+c.dock;if(!byDate[d][k])byDate[d][k]={fc:c.fulfillmentCenter,dock:c.dock,slots:[]};byDate[d][k].slots.push(c)});
   var wpF=$("capaWpFilter").value;
   var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
