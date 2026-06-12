@@ -240,7 +240,7 @@ input[readonly]{opacity:.6}
     <div class="grid4" style="margin-bottom:10px">
       <div class="field"><label>시작일</label><input id="capaDateFrom" type="date"/></div>
       <div class="field"><label>종료일</label><input id="capaDateTo" type="date"/></div>
-      <div class="field"><label>출고방법</label><select id="capaShipFilter"><option value="">전체</option><option value="CAR">차량</option><option value="PARCEL">택배</option></select></div>
+      <div class="field"><label>출고방법</label><select id="capaShipFilter"><option value="CAR">차량</option><option value="PARCEL">택배</option></select></div>
       <div class="field"><label>입고대행</label><select id="capaWpFilter"><option value="">전체</option><option value="false">N</option><option value="true">Y</option></select></div>
     </div>
     <div class="grid2" style="margin-bottom:14px">
@@ -855,18 +855,13 @@ async function doRmsLogin(){var btn=$("rmsLoginBtn");btn.disabled=true;btn.inner
 
 // ═══════════ CAPA 조회 ═══════════
 async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").value;if(!df||!dt){alert("날짜 선택");return}if(!empToken){alert("임직원 로그인 필요");return}
-  $("capaCheckBtn").disabled=true;$("capaCheckBtn").textContent="조회 중...";slog("CAPA 조회: "+df+" ~ "+dt,"info");
-  var baseUrl=getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt;
-  var rCar=await api(baseUrl+"&shippingProcess=CAR",{headers:{Authorization:"Bearer "+empToken}});
-  var rParcel=await api(baseUrl+"&shippingProcess=PARCEL",{headers:{Authorization:"Bearer "+empToken}});
-  var capaCar=rCar.data&&rCar.data.data&&rCar.data.data.receivingDailyCapas||[];
-  var capaParcel=rParcel.data&&rParcel.data.data&&rParcel.data.data.receivingDailyCapas||[];
-  var capas=capaCar.concat(capaParcel);
-  // 중복 제거 (동일 FC+dock+date+shippingProcess)
-  var _seen={};capas=capas.filter(function(c){var uk=c.scheduledReceivingDate+"|"+c.fulfillmentCenter+"|"+c.dock+"|"+c.rmsShippingProcess+"|"+c.hasWaypoint;if(_seen[uk])return false;_seen[uk]=true;return true});
-  slog("✓ 차량 "+capaCar.length+"건 + 택배 "+capaParcel.length+"건 = "+capas.length+"건","ok");
+  $("capaCheckBtn").disabled=true;$("capaCheckBtn").textContent="조회 중...";
+  var shipF=$("capaShipFilter").value;
+  slog("CAPA 조회: "+df+" ~ "+dt+" ("+( shipF==="CAR"?"차량":"택배")+")","info");
+  var r=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt+"&shippingProcess="+shipF,{headers:{Authorization:"Bearer "+empToken}});
+  var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];slog("✓ "+capas.length+"건","ok");
   var byDate={};capas.forEach(function(c){var d=c.scheduledReceivingDate;if(!byDate[d])byDate[d]={};var k=c.fulfillmentCenter+"|"+c.dock;if(!byDate[d][k])byDate[d][k]={fc:c.fulfillmentCenter,dock:c.dock,slots:[]};byDate[d][k].slots.push(c)});
-  var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
+  var wpF=$("capaWpFilter").value;
   var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
 
   // rmsAreas 전체 기준 (CAPA 있든 없든 표시) + 필터 적용
@@ -885,7 +880,7 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
       var arI=rmsAreas.find(function(a){return a.code===sel.dock});
       var dockLabel=arI?(arI.name+"("+sel.dock+")"):sel.dock;
       var label=fcLabel+" > "+dockLabel;
-      if(e&&e.slots.length>0){var filtered=e.slots.filter(function(s){if(shipF&&s.rmsShippingProcess!==shipF)return false;if(wpF!==""&&String(s.hasWaypoint)!==wpF)return false;return true});
+      if(e&&e.slots.length>0){var filtered=e.slots.filter(function(s){if(wpF!==""&&String(s.hasWaypoint)!==wpF)return false;return true});
         if(filtered.length>0){html+='<div class="capa-item ok"><div class="capa-dot on"></div><div>'+label;filtered.forEach(function(s){var sh=s.rmsShippingProcess==="PARCEL"?"택배":"차량";var wp=s.hasWaypoint?"대행":"일반";html+='<div style="font-size:10px;opacity:.8">'+sh+' · '+wp+' — SKU:'+s.availableSkuCapa+'/'+s.totalSkuCapa+' Unit:'+s.availableUnitCapa+'/'+s.totalUnitCapa+'</div>'});html+='</div></div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:true}}
         else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+label+' — 조건 불일치</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}}
       else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+label+' — CAPA 없음</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}})});
