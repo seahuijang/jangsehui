@@ -978,8 +978,8 @@ async function regBulkCapa(){var sel=[];document.querySelectorAll(".capaSel:chec
     else if(res.data&&res.data.message&&res.data.message.indexOf("이미 존재")>-1){capaResults[k].exists=true;ok++;slog("  ✓ "+cr.fc+"/"+cr.dock+" 이미 존재","ok")}
     else{fail++;slog("  ✗ "+cr.fc+"/"+cr.dock+": "+JSON.stringify(res.data).substring(0,100),"err")}
     await sleep(200)}
-  slog("완료: 성공 "+ok+" / 실패 "+fail,"ok");
-  document.querySelectorAll(".capaSel").forEach(function(cb){if(capaResults[cb.value]&&capaResults[cb.value].exists){cb.checked=false;cb.disabled=true;cb.parentElement.style.color="var(--green)";cb.parentElement.style.textDecoration="line-through"}})}
+  slog("완료: 성공 "+ok+" / 실패 "+fail+" → 재조회 중...","ok");
+  await checkCapa()}
 
 // ═══════════ 상품 조회 & 선택 ═══════════
 var allGoodsData=[],allDetailData=[],selectedGoodsIdx=[];
