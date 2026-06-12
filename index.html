@@ -856,8 +856,15 @@ async function doRmsLogin(){var btn=$("rmsLoginBtn");btn.disabled=true;btn.inner
 // ═══════════ CAPA 조회 ═══════════
 async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").value;if(!df||!dt){alert("날짜 선택");return}if(!empToken){alert("임직원 로그인 필요");return}
   $("capaCheckBtn").disabled=true;$("capaCheckBtn").textContent="조회 중...";slog("CAPA 조회: "+df+" ~ "+dt,"info");
-  var r=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt,{headers:{Authorization:"Bearer "+empToken}});
-  var capas=r.data&&r.data.data&&r.data.data.receivingDailyCapas||[];slog("✓ "+capas.length+"건","ok");
+  var baseUrl=getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/receiving/daily-capa?scheduledReceivingDateFrom="+df+"&scheduledReceivingDateTo="+dt;
+  var rCar=await api(baseUrl+"&shippingProcess=CAR",{headers:{Authorization:"Bearer "+empToken}});
+  var rParcel=await api(baseUrl+"&shippingProcess=PARCEL",{headers:{Authorization:"Bearer "+empToken}});
+  var capaCar=rCar.data&&rCar.data.data&&rCar.data.data.receivingDailyCapas||[];
+  var capaParcel=rParcel.data&&rParcel.data.data&&rParcel.data.data.receivingDailyCapas||[];
+  var capas=capaCar.concat(capaParcel);
+  // 중복 제거 (동일 FC+dock+date+shippingProcess)
+  var _seen={};capas=capas.filter(function(c){var uk=c.scheduledReceivingDate+"|"+c.fulfillmentCenter+"|"+c.dock+"|"+c.rmsShippingProcess+"|"+c.hasWaypoint;if(_seen[uk])return false;_seen[uk]=true;return true});
+  slog("✓ 차량 "+capaCar.length+"건 + 택배 "+capaParcel.length+"건 = "+capas.length+"건","ok");
   var byDate={};capas.forEach(function(c){var d=c.scheduledReceivingDate;if(!byDate[d])byDate[d]={};var k=c.fulfillmentCenter+"|"+c.dock;if(!byDate[d][k])byDate[d][k]={fc:c.fulfillmentCenter,dock:c.dock,slots:[]};byDate[d][k].slots.push(c)});
   var shipF=$("capaShipFilter").value,wpF=$("capaWpFilter").value;
   var fcFilter=$("capaFcFilter").value,dockFilter=$("capaDockFilter").value;
@@ -1085,11 +1092,16 @@ async function runAll(){if(!v2empToken)return;
       var grp=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/groups?purchaseOrderRegisterDateFrom="+regDate+"&purchaseOrderRegisterDateTo="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&currentPage=1&limit=20",{headers:{Authorization:"Bearer "+v2empToken}});
       var gdd=grp.data&&grp.data.data;if(gdd&&!Array.isArray(gdd))gdd=gdd.content||[];if(!Array.isArray(gdd))gdd=[];
       if(gdd.length)regDate=gdd[0].purchaseOrderManagerRegisterDate||regDate;
-      // SCHEDULED 상태만 조회
-      var ptc=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&neoPurchaseOrderPlanGoodsStatuses=SCHEDULED&currentPage=1&limit=500",{headers:{Authorization:"Bearer "+v2empToken}});
-      // 응답 구조 유연 파싱: data.data가 배열 or {goodsList:[...]} or {content:[...]}
-      var _raw=ptc.data&&ptc.data.data;pd=Array.isArray(_raw)?_raw:(_raw&&(_raw.goodsList||_raw.content||_raw.goods||[]));if(!Array.isArray(pd))pd=[];
-      log("   응답 "+pd.length+"건 (raw keys: "+JSON.stringify(Object.keys(_raw||{})).substring(0,100)+")","info");
+      // SCHEDULED 상태만 조회 (페이지네이션)
+      pd=[];var _pg=1;var _more=true;
+      while(_more){
+        var ptc=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods/particular-group?purchaseOrderRegisterDate="+regDate+"&purchaseOrderManagerEmail="+encodeURIComponent(email)+"&neoPurchaseOrderPlanGoodsStatuses=SCHEDULED&currentPage="+_pg+"&limit=500",{headers:{Authorization:"Bearer "+v2empToken}});
+        var _raw=ptc.data&&ptc.data.data;var _page=Array.isArray(_raw)?_raw:(_raw&&(_raw.goodsList||_raw.content||_raw.goods||[]));if(!Array.isArray(_page))_page=[];
+        pd=pd.concat(_page);
+        var _total=_raw&&(_raw.totalElements||_raw.totalCount||_raw.total)||0;
+        _more=_page.length===500&&pd.length<_total;_pg++;
+      }
+      log("   응답 "+pd.length+"건 ("+_pg+"페이지)","info");
       // 이번 등록 goodsId + 입고예정일 매칭
       pgIds=pd.filter(function(i){return rIds.indexOf(Number(i.goodsId))>-1&&i.scheduledReceivingDate===sDate}).map(function(i){return i.neoPurchaseOrderPlanGoodsId});
       // 매칭 안 되면 goodsId만으로 fallback
@@ -1105,8 +1117,21 @@ async function runAll(){if(!v2empToken)return;
     setFS(4,"active");log("[ 공급사 확정 ]","info");
     var sl=await api(escm+"/api/v2/user/login",{method:"POST",body:{loginId:supId,password:supPw}});if(!sl.data.token)throw new Error("공급사 토큰 없음");supToken=sl.data.token;
     $("supCardName").textContent=sl.data.name||supId;$("supCardId").textContent=supId;$("supCard").classList.add("show");updateLoginStatus();log("✓ 공급사 로그인","ok");
-    var sd2=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/particular-group?scheduledReceivingDate="+sDate+"&sortType=FULFILLMENT_CENTER_ASC",{headers:{Authorization:"Bearer "+supToken}});
-    var gl=sd2.data&&sd2.data.data&&sd2.data.data.goodsList||[];var cr=gl.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="CREATED"});if(!cr.length)throw new Error("CREATED 없음");
+    var cr=[];
+    for(var _cr=0;_cr<5;_cr++){
+      if(_cr>0)log("   CREATED 조회 재시도 "+_cr+"/4...","info");
+      await sleep(_cr===0?2000:2500);
+      var gl=[];var _sp=1;var _smore=true;
+      while(_smore){
+        var sd2=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/particular-group?scheduledReceivingDate="+sDate+"&sortType=FULFILLMENT_CENTER_ASC&currentPage="+_sp+"&limit=500",{headers:{Authorization:"Bearer "+supToken}});
+        var _sg=sd2.data&&sd2.data.data&&sd2.data.data.goodsList||[];gl=gl.concat(_sg);
+        var _st=sd2.data&&sd2.data.data&&(sd2.data.data.totalElements||sd2.data.data.totalCount||sd2.data.data.total)||0;
+        _smore=_sg.length===500&&gl.length<_st;_sp++;
+      }
+      cr=gl.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="CREATED"});
+      if(cr.length)break;
+    }
+    if(!cr.length)throw new Error("CREATED 없음 (5회 재시도 후에도 조회 실패)");
     var tr=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/receiving-times?scheduledReceivingDate="+sDate,{headers:{Authorization:"Bearer "+supToken}});
     var rt=tr.data&&tr.data.data&&tr.data.data.receivingTime||{};var at=[];Object.keys(rt).forEach(function(fc){Object.keys(rt[fc]).forEach(function(dk){rt[fc][dk].forEach(function(t){at.push({fc:fc,dock:dk,id:t.rmsOperationTimeId,from:t.receivingTimeFrom,to:t.receivingTimeTo,wp:t.hasWaypoint,parcel:t.parcelYn})})})});
     var ul=cr.map(function(c){var fc=c.fulfillmentCenter,dk=c.dock,wp=c.waypoint||"N";var mt=at.filter(function(t){return t.fc===fc&&t.dock===dk&&(wp==="Y"||wp==="WAY1"?t.wp:!t.wp)&&!t.parcel});var ti=mt[0]||at.find(function(t){return t.fc===fc&&t.dock===dk})||{id:0,from:"00:00",to:"23:59"};
@@ -1114,8 +1139,14 @@ async function runAll(){if(!v2empToken)return;
     var cfm=await api(escm+"/api-purchase/v2/purchase-order-plan-goods",{method:"PATCH",headers:{Authorization:"Bearer "+supToken},body:{updateGoodsList:ul,scheduledReceivingDate:sDate}});
     if(cfm.status!==200)throw new Error("확정 실패 "+cfm.status+": "+JSON.stringify(cfm.data).substring(0,300));log("✓ 확정 "+ul.length+"건","ok");setFS(4,"done");
     setFS(5,"active");log("[ 확정서 ]","info");await sleep(500);
-    var cd=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/particular-group?scheduledReceivingDate="+sDate+"&sortType=FULFILLMENT_CENTER_ASC",{headers:{Authorization:"Bearer "+supToken}});
-    var confirmedGoods=(cd.data&&cd.data.data&&cd.data.data.goodsList||[]).filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="CONFIRMED"});
+    var allConfGL=[];var _cp=1;var _cmore=true;
+    while(_cmore){
+      var cd=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/particular-group?scheduledReceivingDate="+sDate+"&sortType=FULFILLMENT_CENTER_ASC&currentPage="+_cp+"&limit=500",{headers:{Authorization:"Bearer "+supToken}});
+      var _cg=cd.data&&cd.data.data&&cd.data.data.goodsList||[];allConfGL=allConfGL.concat(_cg);
+      var _ct=cd.data&&cd.data.data&&(cd.data.data.totalElements||cd.data.data.totalCount||cd.data.data.total)||0;
+      _cmore=_cg.length===500&&allConfGL.length<_ct;_cp++;
+    }
+    var confirmedGoods=allConfGL.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="CONFIRMED"});
     var cIds=confirmedGoods.map(function(i){return i.neoPurchaseOrderPlanGoodsId});
     var mc=await api(escm+"/api-purchase/v2/purchase-order-statement/selections/merge-check",{method:"POST",headers:{Authorization:"Bearer "+supToken},body:{neoPurchaseOrderPlanGoodsIds:cIds}});
     log("[DEBUG] merge-check 응답: "+JSON.stringify(mc.data).substring(0,500),"info");
