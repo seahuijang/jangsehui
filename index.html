@@ -158,6 +158,32 @@ input[readonly]{opacity:.6}
 
 @media(max-width:700px){.grid2,.grid3,.grid4{grid-template-columns:1fr}.login-row{flex-direction:column}}
 
+/* 거래명세서 병합 모달 */
+.merge-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:100;justify-content:center;align-items:center}
+.merge-overlay.show{display:flex}
+.merge-modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:24px;width:460px;max-width:90vw;max-height:80vh;overflow-y:auto}
+.merge-modal h3{font-size:15px;font-weight:700;color:var(--primary-light);margin-bottom:16px}
+.merge-modal .desc{font-size:13px;color:var(--text2);margin-bottom:16px;line-height:1.6}
+.merge-opt{display:flex;gap:12px;margin-bottom:16px}
+.merge-opt label{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:16px 12px;border:2px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;text-align:center}
+.merge-opt label:hover{border-color:var(--text3)}
+.merge-opt input[type=radio]{display:none}
+.merge-opt input[type=radio]:checked+label{border-color:var(--primary);background:var(--primary-dim)}
+.merge-opt .opt-icon{font-size:24px}
+.merge-opt .opt-title{font-size:13px;font-weight:600;color:var(--text)}
+.merge-opt .opt-desc{font-size:11px;color:var(--text2);line-height:1.4}
+.merge-exist-list{margin-bottom:16px;max-height:150px;overflow-y:auto}
+.merge-exist-list table{width:100%;font-size:12px;border-collapse:collapse}
+.merge-exist-list th{background:var(--surface2);color:var(--text2);padding:6px 8px;text-align:left;font-weight:500}
+.merge-exist-list td{padding:6px 8px;border-top:1px solid var(--border);color:var(--text)}
+.merge-code-chk{width:16px;height:16px;accent-color:var(--primary);cursor:pointer}
+.merge-code-chk:disabled{opacity:.3;cursor:not-allowed}
+.merge-exist-list label{cursor:pointer}
+.merge-btns{display:flex;gap:8px;justify-content:flex-end}
+.merge-btns button{padding:8px 20px;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;border:none}
+.merge-btns .btn-cancel{background:var(--surface2);color:var(--text2)}
+.merge-btns .btn-confirm{background:var(--primary);color:#fff}
+.merge-btns .btn-confirm:disabled{opacity:.4;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -273,9 +299,8 @@ input[readonly]{opacity:.6}
   <div class="card" id="orderOptionsCard" style="display:none">
     <div class="card-title"><span class="num">3</span>발주 옵션</div>
     <p class="hint" style="margin-bottom:10px">발주 정보를 선택하여 입력해주세요. 선택된 입고지만 발주 처리됩니다.</p>
-    <div class="grid3" style="margin-bottom:14px">
-      <div class="field"><label>발주 유형</label><select id="poType" onchange="onPoType()"><option value="NORMAL">일반</option><option value="EMERGENCY">긴급</option></select></div>
-      <div class="field"><label>입고예정일</label><input id="recvDate" type="date" onchange="v2CheckCapa()"/><p class="hint">일반: +1일 / 긴급: 당일</p></div>
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="field"><label>입고예정일</label><input id="recvDate" type="date" onchange="v2CheckCapa()"/><p class="hint">기본: 오늘 +1일</p></div>
       <div class="field"><label>수량</label><input id="quantity" type="number" value="1" min="1"/></div>
     </div>
     <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.06em;margin-bottom:10px">입고지 선택</div>
@@ -289,12 +314,7 @@ input[readonly]{opacity:.6}
         <label>출고방법 (ReleaseProcess)</label>
         <select id="v2releaseProcess" onchange="onV2RpChange()">
           <option value="">상품 기본값 유지</option>
-          <option value="KURLY_PICKUP">컬리픽업</option>
-          <option value="MILKRUN_PICKUP">밀크런픽업</option>
-          <option value="KURLY_MILKRUN_PICKUP">컬리+밀크런</option>
-          <option value="PARCEL">택배</option>
-          <option value="DIRECT_DELIVERY">직배송</option>
-          <option value="ETC">기타</option>
+          <option value="PARCEL">택배로 변경</option>
         </select>
         <div id="v2rpSummary" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
       </div>
@@ -504,7 +524,7 @@ function setEnv(name){
   // V2 입력 초기화
   $("searchSupplier").value="";$("searchGoods").value="";
   $("recvDate").value=dateStr(1);$("quantity").value="1";
-  $("v2releaseProcess").value="";$("poType").value="NORMAL";v2skipVal=false;
+  $("v2releaseProcess").value="";v2skipVal=false;
   if($("v2skip-false"))$("v2skip-false").className="chip active";
   if($("v2skip-true"))$("v2skip-true").className="chip";
   $("goodsListArea").innerHTML="";
@@ -1045,7 +1065,7 @@ async function runAll(){if(!v2empToken)return;
   var v2releaseProcess=$("v2releaseProcess").value; // ""이면 상품 기본값
   var v2waypointOverride=$("v2waypoint").value; // ""이면 상품 기본값
   $("log-area").style.display="block";$("log-list").innerHTML="";$("resultCard").style.display="none";
-  var supId=$("supLoginId").value,supPw=$("supPassword").value,sDate=$("recvDate").value||dateStr(1),qty=parseInt($("quantity").value)||1,poType=$("poType").value||"NORMAL";
+  var supId=$("supLoginId").value,supPw=$("supPassword").value,sDate=$("recvDate").value||dateStr(1),qty=parseInt($("quantity").value)||1,poType="NORMAL";
   if(!supId||!supPw){log("공급사 로그인 정보 필요","err");return}
   var btn=$("runBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>실행 중...';
   var today=dateStr(0);var admin=getEnv().admin;var escm=getEnv().escm;
@@ -1130,11 +1150,14 @@ async function runAll(){if(!v2empToken)return;
     var mCodes=[];var existStatements=[];var mcData=mc.data&&mc.data.data||mc.data||[];if(!Array.isArray(mcData))mcData=mcData.goods||mcData.goodsList||mcData.statements||mcData.content||[];if(!Array.isArray(mcData))mcData=[];
     mcData.forEach(function(g){var stmts=g.statements||g.neoPurchaseOrderStatements||[];if(!Array.isArray(stmts)&&g.neoPurchaseOrderStatementCode){stmts=[g]};stmts.forEach(function(s){var code=s.neoPurchaseOrderStatementCode||s.statementCode||s.code;if(code&&mCodes.indexOf(code)<0){mCodes.push(code);existStatements.push({code:code,goodsCount:s.goodsCount||s.neoPurchaseOrderPlanGoodsCount||s.count||"-",status:s.neoPurchaseOrderStatementStatus||s.status||"-"})}})});
 
-    // 발주확정 후 merge-check 결과로 자동 분기
+    // 병합 가능한 기존 거래명세서가 있으면 사용자에게 선택 요청
     var selectedMCodes=[];
     if(mCodes.length){
-      selectedMCodes=mCodes;
-      log("기존 거래명세서 "+mCodes.length+"건 발견 → 자동 병합: "+selectedMCodes.join(", "),"ok");
+      log("기존 거래명세서 "+mCodes.length+"건 발견 → 병합/신규 선택 대기...","info");
+      var choice=await showMergeModal(existStatements,cIds);
+      if(!choice)throw new Error("거래명세서 생성이 취소되었습니다.");
+      selectedMCodes=choice.codes;
+      log("→ "+(choice.mode==="merge"?"기존 병합 ("+selectedMCodes.join(", ")+")":"신규 생성")+" 선택","ok");
     }else{log("기존 거래명세서 없음 → 신규 생성","info")}
 
     // 생성 전 거래명세서 코드 스냅샷
@@ -1380,8 +1403,69 @@ async function v1RunAll(){
 // V1 초기화
 v1InitCenters();v1SetSkip(false);
 document.addEventListener("DOMContentLoaded",function(){$("v1recvDate").value=dateStr(1)});
+// 거래명세서 병합 모달
+function showMergeModal(existingStatements,cIds){
+  return new Promise(function(resolve){
+    var ov=$("mergeOverlay"),list=$("mergeExistList"),confirmBtn=$("mergeConfirmBtn");
+    // 기존 거래명세서 목록을 체크박스로 표시
+    if(existingStatements.length){
+      var html="<table><tr><th></th><th>거래명세서 코드</th><th>상품 수</th><th>상태</th></tr>";
+      existingStatements.forEach(function(s,i){html+="<tr><td><input type='checkbox' class='merge-code-chk' value='"+s.code+"' id='mchk"+i+"'/></td><td><label for='mchk"+i+"'>"+s.code+"</label></td><td>"+(s.goodsCount||"-")+"</td><td>"+(s.status||"-")+"</td></tr>"});
+      html+="</table>";list.innerHTML=html;list.style.display="block";
+    }else{list.style.display="none"}
+    // 모드 전환 시 체크박스 활성/비활성
+    function updateChkState(){
+      var isMerge=$("mergeOptMerge").checked;
+      var chks=list.querySelectorAll(".merge-code-chk");
+      chks.forEach(function(c){c.disabled=!isMerge;if(!isMerge)c.checked=false});
+    }
+    $("mergeOptNew").onchange=updateChkState;
+    $("mergeOptMerge").onchange=function(){updateChkState();var chks=list.querySelectorAll(".merge-code-chk");if(chks.length===1)chks[0].checked=true};
+    // 기존 없으면 신규만 선택 가능
+    if(!existingStatements.length){$("mergeOptMerge").disabled=true;$("mergeOptNew").checked=true}else{$("mergeOptMerge").disabled=false}
+    $("mergeOptNew").checked=true;updateChkState();
+    confirmBtn.disabled=false;
+    ov.classList.add("show");
+    confirmBtn.onclick=function(){
+      if($("mergeOptMerge").checked){
+        var sel=[];list.querySelectorAll(".merge-code-chk:checked").forEach(function(c){sel.push(c.value)});
+        if(!sel.length){alert("병합할 거래명세서를 선택해주세요.");return}
+        ov.classList.remove("show");resolve({mode:"merge",codes:sel});
+      }else{
+        ov.classList.remove("show");resolve({mode:"new",codes:[]});
+      }
+    };
+    $("mergeCancelBtn").onclick=function(){ov.classList.remove("show");resolve(null)};
+  });
+}
 </script>
 
+<!-- 거래명세서 병합 선택 모달 -->
+<div class="merge-overlay" id="mergeOverlay">
+<div class="merge-modal">
+  <h3>거래명세서 생성 방식 선택</h3>
+  <div class="desc">확정된 발주 상품의 거래명세서를 생성합니다.<br/>기존 거래명세서가 있는 경우 병합하거나, 신규로 생성할 수 있습니다.</div>
+  <div class="merge-exist-list" id="mergeExistList"></div>
+  <div class="merge-opt">
+    <input type="radio" name="mergeMode" id="mergeOptNew" value="new" checked/>
+    <label for="mergeOptNew">
+      <span class="opt-icon">📄</span>
+      <span class="opt-title">신규 생성</span>
+      <span class="opt-desc">새로운 거래명세서를<br/>생성합니다</span>
+    </label>
+    <input type="radio" name="mergeMode" id="mergeOptMerge" value="merge"/>
+    <label for="mergeOptMerge">
+      <span class="opt-icon">🔗</span>
+      <span class="opt-title">기존 병합</span>
+      <span class="opt-desc">기존 거래명세서에<br/>병합합니다</span>
+    </label>
+  </div>
+  <div class="merge-btns">
+    <button class="btn-cancel" id="mergeCancelBtn">취소</button>
+    <button class="btn-confirm" id="mergeConfirmBtn">확인</button>
+  </div>
+</div>
+</div>
 
 </body>
 </html>
