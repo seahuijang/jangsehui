@@ -195,6 +195,7 @@ input[readonly]{opacity:.6}
     <div class="tab active" data-page="capa" onclick="showPage('capa')">CAPA 관리</div>
     <div class="tab" data-page="order" onclick="showPage('order')">발주 V2</div>
     <div class="tab" data-page="v1" onclick="showPage('v1')">발주 V1</div>
+    <div class="tab" data-page="rts" onclick="showPage('rts')">회송/폐기 이슈</div>
   </div>
   <div class="top-right">
     <span class="login-status" id="loginStatus"></span>
@@ -228,7 +229,7 @@ input[readonly]{opacity:.6}
     <p class="hint" style="margin-bottom:8px">RMS 계정 정보를 입력하세요.</p>
     <div class="login-row">
       <div class="field"><label>ID</label><input id="rmsId" type="text" value="seahui.jang1"/></div>
-      <div class="field"><label>비밀번호</label><input id="rmsPw" type="password" value="tpgldia12!"/></div>
+      <div class="field"><label>비밀번호</label><input id="rmsPw" type="password" value="1234"/></div>
       <button class="btn btn-amber" id="rmsLoginBtn" onclick="doRmsLogin()">로그인</button>
     </div>
     <div class="auth-card rms" id="rmsCard"><div class="avatar rms">R</div><div><p style="font-size:13px;color:var(--amber);font-weight:500">RMS 연결됨</p><span style="font-size:11px;color:var(--text3)" id="rmsDetail">-</span></div></div>
@@ -249,6 +250,14 @@ input[readonly]{opacity:.6}
     </div>
     <button class="btn btn-primary btn-full" onclick="checkCapa()" id="capaCheckBtn">CAPA 조회</button>
     <div id="capaResults" style="margin-top:14px"></div>
+  </div>
+
+  <!-- CAPA 증량 -->
+  <div class="card" id="capaBoostCard" style="display:none">
+    <div class="card-title">CAPA 증량 (기존 운영시간 수량 변경)</div>
+    <p class="hint" style="margin-bottom:10px">위 조회 조건의 입고지와 시작일을 기준으로 이미 등록된 운영시간을 불러옵니다. 운영시간을 새로 만드는 것이 아니라 그 날짜의 입고가능물량만 바꿉니다.</p>
+    <button class="btn btn-outline btn-full" onclick="loadOpTimes()" id="boostLoadBtn">운영시간 불러오기</button>
+    <div id="boostArea" style="margin-top:14px"></div>
   </div>
 
   <!-- CAPA 등록 -->
@@ -471,6 +480,114 @@ input[readonly]{opacity:.6}
   </div>
 </div>
 
+<!-- ═══════════ PAGE 4: 회송/폐기 이슈 데이터 ═══════════ -->
+<div class="page" id="page-rts">
+
+  <!-- 1. RMS 로그인 -->
+  <div class="card">
+    <div class="card-title"><span class="num">1</span>RMS 로그인</div>
+    <p class="hint" style="margin-bottom:10px">검수·이슈 등록은 RMS 계정으로 처리됩니다. CAPA 탭에서 이미 로그인했다면 그대로 사용됩니다.</p>
+    <div class="login-row">
+      <div class="field"><label>ID</label><input id="rtsRmsId" type="text" value="seahui.jang1"/></div>
+      <div class="field"><label>비밀번호</label><input id="rtsRmsPw" type="password" value="1234"/></div>
+      <button class="btn btn-amber" style="height:38px;flex-shrink:0" id="rtsLoginBtn" onclick="rtsLogin()">로그인</button>
+    </div>
+    <div class="auth-card rms" id="rtsRmsCard"><div class="avatar rms">R</div><div><p style="font-size:13px;color:var(--amber);font-weight:500">RMS 연결됨</p><span style="font-size:11px;color:var(--text3)" id="rtsRmsDetail">-</span></div></div>
+  </div>
+
+  <!-- 2. 발주 선택 -->
+  <div class="card">
+    <div class="card-title"><span class="num">2</span>발주 선택</div>
+    <p class="hint" style="margin-bottom:10px">이슈를 만들 발주코드를 입력하세요. 검수 대기 상태의 발주여야 합니다.</p>
+    <div class="login-row">
+      <div class="field"><label>발주코드</label><input id="rtsPoCode" type="text" placeholder="예: PO2609200001"/></div>
+      <button class="btn btn-outline" style="height:38px;flex-shrink:0" id="rtsLoadBtn" onclick="rtsLoadOrder()">상품 불러오기</button>
+    </div>
+    <p class="hint" id="rtsPoInfo" style="margin-top:8px"></p>
+    <div id="rtsItemArea" style="margin-top:14px"></div>
+  </div>
+
+  <!-- 3. 이슈 조건 -->
+  <div class="card" id="rtsCondCard" style="display:none">
+    <div class="card-title"><span class="num">3</span>이슈 조건</div>
+    <div class="grid3" style="margin-bottom:14px">
+      <div class="field">
+        <label>검수 구분</label>
+        <div style="display:flex;gap:8px;margin-top:2px">
+          <div class="chip active" id="rts-ci" onclick="rtsSetType('CI')" style="flex:1;text-align:center">검수 (CI)</div>
+          <div class="chip" id="rts-qi" onclick="rtsSetType('QI')" style="flex:1;text-align:center">검품 (QI)</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>검수 수량</label>
+        <select id="rtsQtyMode" onchange="rtsOnQtyMode()">
+          <option value="order">발주수량 전체</option>
+          <option value="fixed">직접 입력</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>검수 수량 값</label>
+        <input id="rtsInspectionQty" type="number" value="10" min="1" disabled/>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="field">
+        <label>이슈 대분류</label>
+        <select id="rtsIssueGroup" onchange="rtsOnGroupChange()"><option value="">로그인 후 로드</option></select>
+      </div>
+      <div class="field">
+        <label>이슈 수량 (유형당)</label>
+        <input id="rtsIssueQty" type="number" value="1" min="1"/>
+      </div>
+    </div>
+
+    <div class="field" style="margin-bottom:14px">
+      <label>이슈 상세유형 <span id="rtsPickedCount" style="color:var(--text3);font-weight:400">— 선택 0건</span></label>
+      <div id="rtsCodeArea" style="margin-top:6px;border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto">
+        <div style="padding:10px 14px;font-size:12px;color:var(--text3)">로그인 후 로드</div>
+      </div>
+      <p class="hint" style="margin-top:6px">대분류를 바꿔도 이미 고른 유형은 유지되므로, 여러 대분류에 걸쳐 고를 수 있습니다.</p>
+    </div>
+
+    <div class="dock-section show" style="border-top:1px solid var(--border)">
+      <div class="dock-label">이슈 유형 배정 방식</div>
+      <div style="display:flex;gap:8px">
+        <div class="chip active" id="rts-assign-one" onclick="rtsSetAssign('one')" style="flex:1;text-align:center">유형 하나로 통일</div>
+        <div class="chip" id="rts-assign-mix" onclick="rtsSetAssign('mix')" style="flex:1;text-align:center">상품마다 다르게</div>
+        <div class="chip" id="rts-assign-all" onclick="rtsSetAssign('all')" style="flex:1;text-align:center">한 상품에 모두</div>
+      </div>
+      <p class="hint" style="margin-top:8px">한 상품에 모두를 고르면 선택한 유형을 상품마다 전부 등록합니다. 이슈 수량의 합계가 검수 수량을 넘으면 등록이 거절되니, 유형 수와 수량을 함께 확인해 주세요.</p>
+    </div>
+
+    <div class="dock-section show" style="border-top:1px solid var(--border)">
+      <div class="dock-label">검수 확정</div>
+      <div style="display:flex;gap:8px">
+        <div class="chip active" id="rts-confirm-on" onclick="rtsSetConfirm(true)" style="flex:1;text-align:center">확정까지 진행</div>
+        <div class="chip" id="rts-confirm-off" onclick="rtsSetConfirm(false)" style="flex:1;text-align:center">이슈 등록까지만</div>
+      </div>
+      <p class="hint" style="margin-top:8px">확정까지 진행해야 파트너포털에 회송/폐기 카드가 노출됩니다. 검품 대상 상품은 검품까지 자동으로 처리합니다.</p>
+    </div>
+  </div>
+
+  <button class="btn btn-primary btn-full btn-lg" id="rtsRunBtn" onclick="rtsRun()" disabled>발주 불러오기 후 실행 가능</button>
+
+  <div class="log-area" id="rtslog-area">
+    <div class="log-head"><span>실행 로그</span><button class="log-clear" onclick="$('rtslog-list').innerHTML=''">지우기</button></div>
+    <ul class="log-list" id="rtslog-list"></ul>
+  </div>
+
+  <div class="result-card" id="rtsResultCard">
+    <h3>✓ 이슈카드 생성 완료</h3>
+    <dl class="result-kv" id="rtsResultKv"></dl>
+    <div style="margin-top:14px">
+      <div style="font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.06em;margin-bottom:6px">생성된 이슈 라인 ID</div>
+      <textarea id="rtsLineIds" readonly style="width:100%;height:72px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;padding:10px;resize:vertical"></textarea>
+      <button class="btn btn-outline" style="margin-top:8px" onclick="rtsCopyIds()">ID 복사</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════ 탭 ═══════════
 function showPage(name){
@@ -485,7 +602,7 @@ function showPage(name){
 var currentEnv="STG";
 var ENV={
   STG:{admin:"https://escm-api-admin.stg.kurly.services",escm:"https://api.escm.stg.kurly.com",rms:"https://inbound-api.rms.stg.kurly.services",
-    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang1",rmsPw:"tpgldia12!",supId:"vd5783.02",supPw:"1234"},
+    empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang1",rmsPw:"1234",supId:"vd5783.02",supPw:"1234"},
   DEV01:{admin:"https://escm-api01.dev.kurly.services",escm:"https://escm-api01.dev.kurly.services",rms:"https://inbound-api.rms.dev.kurly.services",
     empEmail:"seahui.jang@kurlycorp.com",rmsId:"seahui.jang",rmsPw:"tpgmlqkqh12!",supId:"vd3596.01",supPw:"1234"},
   DEV02:{admin:"https://escm-api02.dev.kurly.services",escm:"https://escm-api02.dev.kurly.services",rms:"https://inbound-api.rms.dev.kurly.services",
@@ -517,6 +634,7 @@ function setEnv(name){
   $("v1empCard").classList.remove("show");$("v1supCard").classList.remove("show");
   // CAPA 영역 초기화
   $("capaQueryCard").style.display="none";
+  if($("capaBoostCard")){$("capaBoostCard").style.display="none";$("boostArea").innerHTML=""}
   $("capaResults").innerHTML="";$("capaRegArea").innerHTML="";
   if($("rmsStatus"))$("rmsStatus").innerHTML="";
   $("capaDateFrom").value=dateStr(1);$("capaDateTo").value=dateStr(1);
@@ -565,6 +683,7 @@ function setEnv(name){
   for(var i=1;i<=5;i++){var fs=$("fs"+i);if(fs)fs.className="flow-step"+(i===1?" active":"");var vfs=$("v1fs"+i);if(vfs)vfs.className="flow-step"+(i===1?" active":"");}
   updateLoginStatus();refreshSupSelects();
   console.log("[setEnv] 초기화 완료");
+  if(typeof rtsReset==="function")rtsReset();
 }
 
 var empToken="",supToken="",rmsToken="";  // CAPA용
@@ -887,13 +1006,158 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
         else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+label+' — 조건 불일치</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}}
       else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+label+' — CAPA 없음</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}})});
   $("capaResults").innerHTML=html;
+  $("capaBoostCard").style.display=rmsToken?"block":"none";
+  $("boostArea").innerHTML="";
   var missing=Object.keys(capaResults).filter(function(k){return!capaResults[k].exists});
   if(missing.length>0&&rmsToken)renderCapaRegForms(missing);
   else if(missing.length>0)$("capaRegArea").innerHTML='<div class="card amber" style="text-align:center;color:var(--amber)">CAPA 등록이 필요합니다. RMS 로그인을 먼저 해주세요.</div>';
-  else $("capaRegArea").innerHTML='';
+  else if(rmsToken){
+    // missing 없어도 수동 등록 가능하도록 전체 입고지 목록으로 폼 표시
+    var allKeys=Object.keys(capaResults);
+    $("capaRegArea").innerHTML='<div class="card" style="border-color:var(--green);margin-bottom:14px;text-align:center"><div style="color:var(--green);font-size:13px;margin-bottom:8px">모든 입고지에 CAPA가 확인되었습니다.</div><button class="btn btn-sm" onclick="renderCapaRegForms(Object.keys(capaResults));this.parentElement.style.display=\'none\'">그래도 수동 등록하기</button></div>';
+  } else $("capaRegArea").innerHTML='';
   $("capaCheckBtn").disabled=false;$("capaCheckBtn").textContent="CAPA 조회"}
 
 // ═══════════ CAPA 일괄 등록 폼 ═══════════
+// ═══════════ CAPA 증량 ═══════════
+var boostOpTimes=[];
+
+// 엑셀 파일을 라이브러리 없이 만든다 (zip 무압축 방식)
+var CRC_TABLE=(function(){var t=[];for(var n=0;n<256;n++){var c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(bytes){var c=0xFFFFFFFF;for(var i=0;i<bytes.length;i++)c=CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+function zipStore(files){
+  var enc=new TextEncoder(),parts=[],central=[],offset=0;
+  files.forEach(function(f){
+    var name=enc.encode(f.name),data=enc.encode(f.content),crc=crc32(data);
+    var lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0,true);lh.setUint16(8,0,true);
+    lh.setUint16(10,0,true);lh.setUint16(12,0,true);lh.setUint32(14,crc,true);
+    lh.setUint32(18,data.length,true);lh.setUint32(22,data.length,true);
+    lh.setUint16(26,name.length,true);lh.setUint16(28,0,true);
+    parts.push(new Uint8Array(lh.buffer),name,data);
+    var ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0,true);
+    ch.setUint16(10,0,true);ch.setUint16(12,0,true);ch.setUint16(14,0,true);ch.setUint32(16,crc,true);
+    ch.setUint32(20,data.length,true);ch.setUint32(24,data.length,true);
+    ch.setUint16(28,name.length,true);ch.setUint16(30,0,true);ch.setUint16(32,0,true);
+    ch.setUint16(34,0,true);ch.setUint16(36,0,true);ch.setUint32(38,0,true);ch.setUint32(42,offset,true);
+    central.push(new Uint8Array(ch.buffer),name);
+    offset+=30+name.length+data.length;
+  });
+  var cSize=central.reduce(function(a,b){return a+b.length},0);
+  var end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);
+  end.setUint32(12,cSize,true);end.setUint32(16,offset,true);end.setUint16(20,0,true);
+  return new Blob(parts.concat(central,[new Uint8Array(end.buffer)]),{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+function xmlEsc(v){return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function capaXlsx(rows){
+  var head='<row r="1"><c r="A1" t="inlineStr"><is><t>운영시간코드 (필수)</t></is></c><c r="B1" t="inlineStr"><is><t>적용일 (필수)</t></is></c><c r="C1" t="inlineStr"><is><t>입고가능SKU (선택)</t></is></c><c r="D1" t="inlineStr"><is><t>입고가능Unit (선택)</t></is></c></row>';
+  var body="";
+  rows.forEach(function(r,i){var n=i+2;
+    body+='<row r="'+n+'"><c r="A'+n+'" t="inlineStr"><is><t>'+xmlEsc(r.code)+'</t></is></c>'
+        +'<c r="B'+n+'" t="inlineStr"><is><t>'+xmlEsc(r.date)+'</t></is></c>'
+        +'<c r="C'+n+'"><v>'+(parseInt(r.sku)||0)+'</v></c>'
+        +'<c r="D'+n+'"><v>'+(parseInt(r.unit)||0)+'</v></c></row>';
+  });
+  return zipStore([
+    {name:"[Content_Types].xml",content:'<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>'},
+    {name:"_rels/.rels",content:'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+    {name:"xl/workbook.xml",content:'<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>'},
+    {name:"xl/_rels/workbook.xml.rels",content:'<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'},
+    {name:"xl/worksheets/sheet1.xml",content:'<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+head+body+'</sheetData></worksheet>'}
+  ]);
+}
+function exporterUrl(){return getEnv().rms.replace("inbound-api","inbound-exporter")}
+
+async function loadOpTimes(){
+  if(!rmsToken){alert("RMS 로그인이 먼저 필요합니다");return}
+  var fc=$("capaFcFilter").value,date=$("capaDateFrom").value;
+  if(!fc){alert("위 조회 조건에서 입고지(FC)를 먼저 골라 주세요");return}
+  if(!date){alert("조회 시작일을 먼저 입력해 주세요");return}
+  var btn=$("boostLoadBtn");btn.disabled=true;btn.textContent="불러오는 중...";
+  try{
+    var ot=await api(getEnv().rms+"/web/v1/inbound-operation-time/operation-times?warehouse="+fc+"&operationDate="+date+"&limit=100&offset=0",{headers:{Authorization:"Bearer "+rmsToken}});
+    if(ot.status===401){slog("RMS 로그인이 만료되었습니다. 다시 로그인해 주세요.","err");$("boostArea").innerHTML='<div style="font-size:12px;color:var(--red)">RMS 로그인이 만료되었습니다. 위에서 다시 로그인한 뒤 불러와 주세요.</div>';return}
+    if(ot.status!==200){slog("운영시간 조회 실패 ("+ot.status+"): "+JSON.stringify(ot.data).substring(0,120),"err");return}
+    var list=(ot.data&&ot.data.inboundOperationTimes)||[];
+    var cap=await api(getEnv().rms+"/web/v1/inbound-operation-time/capacity/list?warehouse="+fc+"&startDate="+date+"&endDate="+date+"&limit=300&offset=0",{headers:{Authorization:"Bearer "+rmsToken}});
+    var qty={};((cap.data&&cap.data.list)||[]).forEach(function(c){qty[c.inboundOperationTimeCode]={sku:c.sku,unit:c.unit}});
+
+    var dockFilter=$("capaDockFilter").value;
+    if(dockFilter){
+      var ar=rmsAreas.find(function(a){return a.code===dockFilter});
+      if(ar)list=list.filter(function(o){return String(o.inboundAreaId)===String(ar.id)});
+    }
+    boostOpTimes=list;
+    if(!list.length){$("boostArea").innerHTML='<div style="font-size:12px;color:var(--red)">해당 조건에 등록된 운영시간이 없습니다. 아래 등록 영역에서 새로 만들어 주세요.</div>';return}
+
+    var h='<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'+date+' 기준 '+list.length+'건 — 바꿀 수량을 입력하고 적용하세요</div>';
+    list.forEach(function(o,i){
+      var q=qty[o.code]||{sku:"-",unit:"-"};
+      h+='<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">'
+        +'<div style="font-size:12px;color:var(--text2);margin-bottom:6px"><strong>'+o.code+'</strong> · '+o.inboundAreaName+' · '+(o.releaseGroup==="PARCEL"?"택배":"차량")+' '+o.startTime+'~'+o.endTime+'</div>'
+        +'<div style="font-size:11px;color:var(--text3);margin-bottom:8px">현재 — SKU '+q.sku+' / Unit '+q.unit+'</div>'
+        +'<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">'
+        +'<div class="field" style="flex:1;min-width:90px"><label>SKU</label><input id="boostSku'+i+'" type="number" min="0" value="'+(q.sku!=="-"?q.sku:1000)+'"/></div>'
+        +'<div class="field" style="flex:1;min-width:90px"><label>Unit</label><input id="boostUnit'+i+'" type="number" min="0" value="'+(q.unit!=="-"?q.unit:10000)+'"/></div>'
+        +'<button class="btn btn-amber" style="height:38px" onclick="boostByExcel('+i+')">이 날짜 수량 적용</button>'
+        +'<button class="btn btn-outline" style="height:38px" onclick="boostByRecreate('+i+')">삭제 후 재등록</button>'
+        +'</div></div>';
+    });
+    $("boostArea").innerHTML=h;
+    slog("운영시간 "+list.length+"건 로드","ok");
+  }catch(e){slog("운영시간 불러오기 실패: "+e.message,"err")}
+  finally{btn.disabled=false;btn.textContent="운영시간 불러오기"}
+}
+
+async function boostByExcel(i){
+  var o=boostOpTimes[i],date=$("capaDateFrom").value;
+  var sku=$("boostSku"+i).value,unit=$("boostUnit"+i).value;
+  slog("엑셀 업로드로 적용: "+o.code+" ("+date+") → SKU "+sku+" / Unit "+unit,"info");
+  try{
+    var blob=capaXlsx([{code:o.code,date:date,sku:sku,unit:unit}]);
+    var fd=new FormData();fd.append("multipartFile",blob,"capa.xlsx");
+    var r=await fetch(exporterUrl()+"/api/v1/inbound-operation-time/capacity/upload",
+      {method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:fd});
+    var d=await r.json();
+    if(r.status===200&&d.successCnt)slog("  ✓ 적용 완료 ("+d.successCnt+"건)","ok");
+    else{slog("  ✗ 적용 실패: "+(d.error||JSON.stringify(d).substring(0,120)),"err");return}
+    await sleep(800);await loadOpTimes();
+  }catch(e){slog("  ✗ 적용 실패: "+e.message,"err")}
+}
+
+// 시각을 30분 단위 슬롯 번호로 바꾼다 (00:00 → 1)
+function timeToSlot(t){var p=String(t).split(":");var h=parseInt(p[0])||0,m=parseInt(p[1])||0;return h*2+(m>=30?2:1)}
+
+async function boostByRecreate(i){
+  var o=boostOpTimes[i];
+  var sku=parseInt($("boostSku"+i).value)||0,unit=parseInt($("boostUnit"+i).value)||0;
+  if(!confirm(o.code+" 운영시간을 지우고 SKU "+sku+" / Unit "+unit+" 로 다시 등록합니다.\n발주가 이미 잡힌 운영시간은 삭제되지 않습니다. 진행할까요?"))return;
+  slog("삭제 후 재등록: "+o.code,"info");
+  try{
+    var det=await api(getEnv().rms+"/web/v1/inbound-operation-time/"+o.id,{headers:{Authorization:"Bearer "+rmsToken}});
+    var d=(det.data&&det.data.inboundOperationTime)||{};
+    var del=await api(getEnv().rms+"/web/v1/inbound-operation-time/"+o.id+"/delete",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},
+      body:{id:o.id,warehouse:d.warehouseCode,inboundAreaId:Number(d.inboundAreaId),partyType:d.partyType,releaseGroup:d.releaseGroup,xdockYn:!!d.xdockYn}});
+    if(del.status!==200){slog("  ✗ 삭제 실패: "+(del.data&&del.data.message||del.status),"err");return}
+    slog("  삭제 완료","ok");
+    var body={cluster:d.clusterCode,warehouse:d.warehouseCode,inboundAreaId:Number(d.inboundAreaId),
+      partyType:d.partyType,releaseGroup:d.releaseGroup,xdockYnValue:d.xdockYn?"Y":"N",
+      code:d.code,description:d.description||"",startDate:d.startDate,endDate:d.endDate,
+      startTimeSlotNumber:timeToSlot(d.startTime),endTimeSlotNumber:timeToSlot(d.endTime),
+      startTime:d.startTime.length===5?d.startTime+":00":d.startTime,
+      endTime:d.endTime.length===5?d.endTime+":59":d.endTime,
+      monSku:sku,tueSku:sku,wedSku:sku,thuSku:sku,friSku:sku,satSku:sku,sunSku:sku,
+      monUnit:unit,tueUnit:unit,wedUnit:unit,thuUnit:unit,friUnit:unit,satUnit:unit,sunUnit:unit,
+      xdockYn:!!d.xdockYn};
+    var reg=await api(getEnv().rms+"/web/v1/inbound-operation-time",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:body});
+    if(reg.status===200)slog("  ✓ 재등록 완료 — SKU "+sku+" / Unit "+unit,"ok");
+    else slog("  ✗ 재등록 실패: "+JSON.stringify(reg.data).substring(0,150),"err");
+    await sleep(800);await loadOpTimes();
+  }catch(e){slog("  ✗ 실패: "+e.message,"err")}
+}
+
 function renderCapaRegForms(missingKeys){
   var defShip=$("capaShipFilter").value||"CAR";var defWp=$("capaWpFilter").value;var defXd=(defWp==="true")?"Y":"N";
   var od=["mon","tue","wed","thu","fri","sat","sun"];
@@ -1437,6 +1701,338 @@ function showMergeModal(existingStatements,cIds){
     };
     $("mergeCancelBtn").onclick=function(){ov.classList.remove("show");resolve(null)};
   });
+}
+// ═══════════ 회송/폐기 이슈 데이터 생성 ═══════════
+var rtsType="CI",rtsAssign="one",rtsConfirm=true,rtsPoId=null,rtsItems=[],rtsSelected=[],rtsGroups=[],rtsDetails=[],rtsPicked=[];
+
+function rlog(m,t){$("rtslog-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("rtslog-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
+function rtsHdr(){return{Authorization:"Bearer "+rmsToken}}
+function rtsOk(s){return s>=200&&s<300}
+function rtsErrMsg(d){if(!d)return"";return d.message||d.error||(d._raw?String(d._raw).substring(0,120):JSON.stringify(d).substring(0,120))}
+
+function rtsSetType(t){
+  rtsType=t;
+  $("rts-ci").className="chip"+(t==="CI"?" active":"");
+  $("rts-qi").className="chip"+(t==="QI"?" active":"");
+  if(rmsToken)rtsLoadIssueTypes();
+}
+function rtsSetAssign(v){
+  rtsAssign=v;
+  ["one","mix","all"].forEach(function(k){$("rts-assign-"+k).className="chip"+(k===v?" active":"")});
+  rtsUpdatePicked();
+}
+function rtsUpdatePicked(){
+  var n=rtsPicked.length,msg="— 선택 "+n+"건";
+  if(n){
+    if(rtsAssign==="all")msg+=" · 상품마다 "+n+"건씩 등록";
+    else if(rtsAssign==="mix")msg+=" · 상품 순서대로 하나씩 배정";
+    else msg+=" · 맨 위 유형 하나만 사용";
+  }
+  $("rtsPickedCount").textContent=msg;
+}
+function rtsTogglePick(cb){
+  var code=cb.dataset.code;
+  rtsPicked=rtsPicked.filter(function(p){return String(p.value)!==String(code)});
+  if(cb.checked)rtsPicked.push({value:code,text:cb.dataset.text});
+  rtsUpdatePicked();
+}
+// 배정 방식에 따라 이 상품에 등록할 유형 목록을 정한다
+function rtsCodesFor(n){
+  if(!rtsPicked.length)return [];
+  if(rtsAssign==="all")return rtsPicked;
+  if(rtsAssign==="mix")return [rtsPicked[n%rtsPicked.length]];
+  return [rtsPicked[0]];
+}
+function rtsSetConfirm(v){
+  rtsConfirm=v;
+  $("rts-confirm-on").className="chip"+(v?" active":"");
+  $("rts-confirm-off").className="chip"+(v?"":" active");
+}
+function rtsOnQtyMode(){$("rtsInspectionQty").disabled=$("rtsQtyMode").value!=="fixed"}
+
+async function rtsLogin(){
+  var btn=$("rtsLoginBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
+  try{
+    var r=await api(getEnv().rms+"/auth/v1/login",{method:"POST",body:{loginId:$("rtsRmsId").value,password:$("rtsRmsPw").value}});
+    if(!r.data||!r.data.token)throw new Error("토큰 없음 — 비밀번호를 확인하세요");
+    rmsToken=r.data.token;
+    var jwt=decodeJWT(rmsToken)||{};
+    $("rtsRmsDetail").textContent=($("rtsRmsId").value)+(jwt.warehouse?" / "+jwt.warehouse:"");
+    $("rtsRmsCard").classList.add("show");
+    rlog("RMS 로그인 성공","ok");
+    if(typeof updateLoginStatus==="function")updateLoginStatus();
+    await rtsLoadIssueTypes();
+  }catch(e){rlog("로그인 실패: "+e.message,"err");alert("로그인 실패: "+e.message)}
+  finally{btn.disabled=false;btn.textContent="로그인"}
+}
+
+async function rtsLoadIssueTypes(){
+  var r=await api(getEnv().rms+"/m/v1/receiving/inspection-header/issue/types?isQi="+(rtsType==="QI"),{headers:rtsHdr()});
+  if(!rtsOk(r.status)){rlog("이슈 유형 조회 실패: "+rtsErrMsg(r.data),"err");return}
+  var d=r.data||{};
+  rtsGroups=d.issueTypes||[];
+  rtsDetails=d.detailIssueTypes||[];
+  if(!rtsGroups.length&&!rtsDetails.length){
+    // 응답 형태가 다를 경우를 대비해 배열 필드를 훑는다
+    Object.keys(d).forEach(function(k){
+      var v=d[k];
+      if(Array.isArray(v)&&v.length&&v[0]&&v[0].value!==undefined){
+        if(v[0].subGroupCode!==undefined)rtsDetails=v;else rtsGroups=v;
+      }
+    });
+    rlog("이슈 유형 응답 형태가 예상과 달라 자동 해석했습니다: "+JSON.stringify(d).substring(0,200),"warn");
+  }
+  var gs=$("rtsIssueGroup");gs.innerHTML="";
+  if(!rtsGroups.length){gs.innerHTML='<option value="">대분류 없음</option>'}
+  else{rtsGroups.forEach(function(g){gs.innerHTML+='<option value="'+g.value+'">'+g.text+'</option>'})}
+  rlog("이슈 유형 로드 완료 — 대분류 "+rtsGroups.length+"건 / 상세 "+rtsDetails.length+"건","ok");
+  rtsOnGroupChange();
+}
+
+function rtsCurrentDetails(){
+  var g=$("rtsIssueGroup").value;
+  var list=rtsDetails.filter(function(d){return String(d.subGroupCode)===String(g)});
+  return list.length?list:rtsDetails;
+}
+function rtsOnGroupChange(){
+  var list=rtsCurrentDetails(),h="";
+  if(!list.length)h='<div style="padding:10px 14px;font-size:12px;color:var(--text3)">상세유형 없음</div>';
+  else list.forEach(function(d){
+    var on=rtsPicked.some(function(p){return String(p.value)===String(d.value)});
+    var t=String(d.text).replace(/"/g,"&quot;");
+    h+='<label style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;color:var(--text2)">'
+      +'<input type="checkbox" data-code="'+d.value+'" data-text="'+t+'" onchange="rtsTogglePick(this)" style="width:auto"'+(on?" checked":"")+'/>'
+      +'<span>'+d.text+'</span></label>';
+  });
+  $("rtsCodeArea").innerHTML=h;
+  rtsUpdatePicked();
+}
+
+async function rtsLoadOrder(){
+  if(!rmsToken){alert("RMS 로그인이 먼저 필요합니다");return}
+  var poCode=$("rtsPoCode").value.trim();
+  if(!poCode){alert("발주코드를 입력하세요");return}
+  var btn=$("rtsLoadBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
+  try{
+    var scan=await api(getEnv().rms+"/m/v1/scan/inspection/count/"+encodeURIComponent(poCode),{headers:rtsHdr()});
+    if(!rtsOk(scan.status))throw new Error(rtsErrMsg(scan.data)||"발주 조회 실패");
+    var po=(scan.data&&scan.data.purchaseOrder)||{};
+    rtsPoId=po.purchaseOrderId||null;
+    $("rtsPoInfo").textContent="발주 ID "+(rtsPoId||"-")+" · 센터도착 "+(po.centerArrivalTime||"미기록");
+    rlog("발주 조회 성공: "+poCode,"ok");
+
+    var it=await api(getEnv().rms+"/m/v1/inbound-inspection/progress/"+encodeURIComponent(poCode)+"/items",{headers:rtsHdr()});
+    if(!rtsOk(it.status))throw new Error(rtsErrMsg(it.data)||"상품 목록 조회 실패");
+    rtsItems=(it.data&&it.data.purchaseOrderItems)||[];
+    if(!rtsItems.length)throw new Error("검수 대상 상품이 없습니다");
+    rtsRenderItems();
+    $("rtsCondCard").style.display="block";
+    rlog("상품 "+rtsItems.length+"건 로드","ok");
+    if(!rtsGroups.length)await rtsLoadIssueTypes();
+  }catch(e){rlog("발주 불러오기 실패: "+e.message,"err");alert(e.message)}
+  finally{btn.disabled=false;btn.textContent="상품 불러오기"}
+}
+
+var RTS_STATUS_LABEL={WAITING_FOR_CI:"검수대기",WAITING_FOR_QI:"검품대기",WAITING_FOR_CONFIRMATION:"확정대기",DEPARTED:"출발",FULL_RECEIVED:"전량입고",PARTIAL_RECEIVED:"부분입고",HOLD_RECEIVING:"입고보류",DISALLOW_RECEIVING:"입하불가",EMPTY:"미검수"};
+
+function rtsRenderItems(){
+  var h='<div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.06em;margin-bottom:8px">이슈를 만들 상품 선택</div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:10px"><button class="btn btn-outline" style="padding:6px 14px;font-size:12px" onclick="rtsSelectAll(true)">전체 선택</button><button class="btn btn-outline" style="padding:6px 14px;font-size:12px" onclick="rtsSelectAll(false)">전체 해제</button></div>';
+  h+='<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden">';
+  rtsItems.forEach(function(it,i){
+    var st=RTS_STATUS_LABEL[it.inspectionStatus]||it.inspectionStatus||"-";
+    h+='<label style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer">'
+      +'<input type="checkbox" class="rts-item-cb" data-idx="'+i+'" onchange="rtsOnSelect()" style="width:auto"/>'
+      +'<span style="flex:1;font-size:13px">'+(it.goodsName||"-")+'</span>'
+      +'<span style="font-size:11px;color:var(--text3);font-family:\'JetBrains Mono\',monospace">'+(it.goodsCode||"-")+'</span>'
+      +'<span style="font-size:11px;color:var(--text2)">발주 '+(it.orderQty||0)+'</span>'
+      +'<span style="font-size:11px;color:var(--amber)">'+st+'</span>'
+      +'</label>';
+  });
+  h+='</div>';
+  $("rtsItemArea").innerHTML=h;
+  rtsOnSelect();
+}
+function rtsSelectAll(v){
+  document.querySelectorAll(".rts-item-cb").forEach(function(cb){cb.checked=v});
+  rtsOnSelect();
+}
+function rtsOnSelect(){
+  rtsSelected=[];
+  document.querySelectorAll(".rts-item-cb").forEach(function(cb){if(cb.checked)rtsSelected.push(parseInt(cb.dataset.idx))});
+  var btn=$("rtsRunBtn");
+  btn.disabled=rtsSelected.length===0;
+  btn.textContent=rtsSelected.length?("이슈카드 생성 — 상품 "+rtsSelected.length+"건"):"상품을 선택하세요";
+}
+
+function rtsHeaderBody(it,ctx){
+  var slt=(ctx&&ctx.shelfLifeType)||it.shelfLifeType||"NONE";
+  var qty=$("rtsQtyMode").value==="fixed"?(parseInt($("rtsInspectionQty").value)||1):(it.orderQty||1);
+  var b={purchaseOrderItemId:it.purchaseOrderItemId,inspectionQty:qty,goodsCode:it.goodsCode,
+         exceedCenterSalesDeadlineDate:false,useByDateYn:slt==="USE_DATE"};
+  if(slt==="EXPIRATION_DATE"||slt==="USE_DATE"){
+    b.expirationDate=(ctx&&(ctx.expirationDate||ctx.referenceExpirationDate))||it.expirationDate||dateStr(90);
+    b.manufactureDate=(ctx&&(ctx.manufactureDate||ctx.referenceManufactureDate))||it.manufactureDate||dateStr(0);
+  }
+  return b;
+}
+
+async function rtsRun(){
+  if(!rmsToken){alert("RMS 로그인이 먼저 필요합니다");return}
+  var poCode=$("rtsPoCode").value.trim();
+  var issueQty=parseInt($("rtsIssueQty").value)||1;
+  if(!rtsPicked.length){alert("이슈 상세유형을 하나 이상 선택하세요");return}
+
+  var btn=$("rtsRunBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span> 생성 중';
+  $("rtsResultCard").style.display="none";
+  var made=[],failed=[],allLineIds=[];
+
+  try{
+    var ca=await api(getEnv().rms+"/m/v1/scan/inspection/"+encodeURIComponent(poCode)+"/center-arrival",
+      {method:"POST",headers:rtsHdr(),body:{purchaseOrderCode:poCode}});
+    if(rtsOk(ca.status))rlog("센터 도착 기록 완료","ok");
+    else rlog("센터 도착 기록 건너뜀 ("+ca.status+"): "+rtsErrMsg(ca.data),"warn");
+
+    for(var n=0;n<rtsSelected.length;n++){
+      var it=rtsItems[rtsSelected[n]];
+      var label=(it.goodsName||it.goodsCode||"상품")+" ("+it.goodsCode+")";
+      try{
+        var si=await api(getEnv().rms+"/m/v1/scan/inspection/"+encodeURIComponent(poCode)+"/items/"+it.purchaseOrderItemId+"/start-inspection",
+          {method:"POST",headers:rtsHdr(),body:{purchaseOrderCode:poCode,purchaseOrderItemId:it.purchaseOrderItemId,inspectionType:rtsType}});
+        if(!rtsOk(si.status))rlog("  검수 시작 건너뜀: "+rtsErrMsg(si.data),"warn");
+
+        var cx=await api(getEnv().rms+"/m/v1/inbound-inspection/"+encodeURIComponent(poCode)+"/"+it.purchaseOrderItemId+"/header/context",{headers:rtsHdr()});
+        var ctx=rtsOk(cx.status)?cx.data:null;
+
+        var before=await api(getEnv().rms+"/m/v1/inbound-inspection/"+encodeURIComponent(poCode)+"/"+it.purchaseOrderItemId+"/headers",{headers:rtsHdr()});
+        var beforeIds=((before.data&&before.data.cards)||[]).map(function(c){return c.inspectionHeaderId});
+
+        var hb=rtsHeaderBody(it,ctx);
+        var reg=await api(getEnv().rms+"/m/v1/receiving/inspection-header",{method:"POST",headers:rtsHdr(),body:hb});
+        if(!rtsOk(reg.status))throw new Error("검수 카드 등록 실패: "+rtsErrMsg(reg.data));
+
+        var after=await api(getEnv().rms+"/m/v1/inbound-inspection/"+encodeURIComponent(poCode)+"/"+it.purchaseOrderItemId+"/headers",{headers:rtsHdr()});
+        var cards=(after.data&&after.data.cards)||[];
+        var fresh=cards.filter(function(c){return beforeIds.indexOf(c.inspectionHeaderId)<0});
+        var headerId=fresh.length?fresh[fresh.length-1].inspectionHeaderId
+                    :(cards.length?cards[cards.length-1].inspectionHeaderId:null);
+        if(!headerId)throw new Error("검수 카드 ID를 찾지 못했습니다");
+        rlog("  검수 카드 등록: "+label+" → 카드 "+headerId+" (검수수량 "+hb.inspectionQty+")","ok");
+
+        var codes=rtsCodesFor(n);
+        if(codes.length*issueQty>hb.inspectionQty)
+          rlog("  이슈 합계 "+(codes.length*issueQty)+"개가 검수 수량 "+hb.inspectionQty+"개를 넘어 일부가 거절될 수 있습니다","warn");
+
+        var newIds=[],codeTexts=[];
+        for(var ci=0;ci<codes.length;ci++){
+          var c=codes[ci];
+          var lineBefore=await api(getEnv().rms+"/m/v1/receiving/inspection-header/issue/"+rtsType+"/"+headerId,{headers:rtsHdr()});
+          var lb=((lineBefore.data&&lineBefore.data.inspectionHeaderIssueLines)||[]).map(function(l){return l.inspectionLineId});
+
+          var iss=await api(getEnv().rms+"/m/v1/receiving/inspection-header/issue",
+            {method:"POST",headers:rtsHdr(),body:{purchaseOrderCode:poCode,headerId:headerId,type:rtsType,code:parseInt(c.value),qty:issueQty,files:[]}});
+          if(!rtsOk(iss.status)){rlog("  이슈 등록 실패 — "+c.text+": "+rtsErrMsg(iss.data),"err");continue}
+
+          var lineAfter=await api(getEnv().rms+"/m/v1/receiving/inspection-header/issue/"+rtsType+"/"+headerId,{headers:rtsHdr()});
+          var lines=((lineAfter.data&&lineAfter.data.inspectionHeaderIssueLines)||[]).filter(function(l){return lb.indexOf(l.inspectionLineId)<0});
+          var ids=lines.map(function(l){return l.inspectionLineId});
+          ids.forEach(function(id){newIds.push(id);allLineIds.push(id)});
+          codeTexts.push(c.text);
+          rlog("  이슈 등록: "+c.text+" × "+issueQty+" → 이슈 라인 "+(ids.join(", ")||"(조회 실패)"),"ok");
+          await sleep(150);
+        }
+        if(!newIds.length)throw new Error("이슈가 하나도 등록되지 않았습니다");
+        var codeText=codeTexts.join(", ");
+
+        // 검수 저장 — 이 단계를 거쳐야 검수가 완료 처리되고 확정 대상이 된다
+        var sv=await api(getEnv().rms+"/m/v1/inbound-inspection/"+encodeURIComponent(poCode)+"/"+it.purchaseOrderItemId+"/headers",
+          {method:"POST",headers:rtsHdr(),body:{inspectionHeaderIds:[headerId]}});
+        if(rtsOk(sv.status))rlog("  검수 저장 완료","ok");
+        else rlog("  검수 저장 실패 ("+sv.status+"): "+rtsErrMsg(sv.data),"warn");
+
+        made.push({label:label,headerId:headerId,code:codeText,lineIds:newIds,item:it});
+      }catch(e){
+        rlog("  실패 — "+label+": "+e.message,"err");
+        failed.push({label:label,reason:e.message});
+      }
+      await sleep(200);
+    }
+
+    if(rtsConfirm&&made.length)await rtsConfirmFlow(poCode,made);
+
+    var kv="";
+    kv+="<dt>발주코드</dt><dd>"+poCode+"</dd>";
+    kv+="<dt>생성 성공</dt><dd>"+made.length+"건</dd>";
+    if(failed.length)kv+="<dt>실패</dt><dd>"+failed.length+"건</dd>";
+    kv+="<dt>이슈 라인</dt><dd>"+allLineIds.length+"건</dd>";
+    made.forEach(function(m){kv+="<dt>"+m.label+"</dt><dd>카드 "+m.headerId+" · "+m.code+" · 라인 "+(m.lineIds.join(", ")||"-")+"</dd>"});
+    $("rtsResultKv").innerHTML=kv;
+    $("rtsLineIds").value=allLineIds.join(", ");
+    $("rtsResultCard").style.display="block";
+    rlog("완료 — 성공 "+made.length+"건 / 실패 "+failed.length+"건","ok");
+  }catch(e){rlog("실행 중단: "+e.message,"err")}
+  finally{btn.disabled=false;rtsOnSelect()}
+}
+
+async function rtsConfirmFlow(poCode,made){
+  rlog("[ 검수 확정 ]","info");
+  var headerIds=made.map(function(m){return m.headerId});
+
+  // 검수 확정 — 서명은 빈 값으로 보내며, 공급사 서명은 생략 사유로 대체한다
+  var cf=await api(getEnv().rms+"/m/v1/inbound-inspection/confirm/"+encodeURIComponent(poCode),
+    {method:"POST",headers:rtsHdr(),body:{purchaseOrderId:rtsPoId,purchaseOrderCode:poCode,
+      inspectionHeaderIds:headerIds,inspectorSignature:{},supplierSignSkipReasonCode:"PARCEL_RECEIVING"}});
+  if(rtsOk(cf.status))rlog("검수 확정 요청 완료","ok");
+  else{rlog("검수 확정 실패 ("+cf.status+"): "+rtsErrMsg(cf.data),"err");return}
+
+  // 검품 대상 상품은 검품까지 마쳐야 입하가 확정된다
+  var qiList=made.filter(function(m){return m.item&&m.item.isQiItem});
+  if(qiList.length){
+    rlog("[ 검품 ] 대상 "+qiList.length+"건","info");
+    for(var i=0;i<qiList.length;i++){
+      var m=qiList[i],it=m.item;
+      await api(getEnv().rms+"/m/v1/scan/inspection/"+encodeURIComponent(poCode)+"/items/"+it.purchaseOrderItemId+"/start-inspection",
+        {method:"POST",headers:rtsHdr(),body:{purchaseOrderCode:poCode,purchaseOrderItemId:it.purchaseOrderItemId,inspectionType:"QI"}});
+      var qr=await api(getEnv().rms+"/m/v1/inspection/quality/"+encodeURIComponent(poCode)+"/items/"+it.purchaseOrderItemId+"/record",
+        {method:"POST",headers:rtsHdr(),body:{purchaseOrderCode:poCode,purchaseOrderItemId:it.purchaseOrderItemId,inspectionHeaderIds:[m.headerId]}});
+      if(rtsOk(qr.status))rlog("  검품 저장: "+m.label,"ok");
+      else rlog("  검품 저장 실패 — "+m.label+": "+rtsErrMsg(qr.data),"warn");
+      await sleep(200);
+    }
+    var qc=await api(getEnv().rms+"/m/v1/inspection/quality/"+encodeURIComponent(poCode)+"/confirm",
+      {method:"POST",headers:rtsHdr(),body:{purchaseOrderId:rtsPoId,purchaseOrderCode:poCode}});
+    if(rtsOk(qc.status))rlog("검품 확정 완료","ok");
+    else rlog("검품 확정 실패 ("+qc.status+"): "+rtsErrMsg(qc.data),"err");
+  }
+
+  // 확정 결과를 되읽어 실제로 반영되었는지 확인한다
+  await sleep(1500);
+  var pr=await api(getEnv().rms+"/m/v1/inbound-inspection/progress/"+encodeURIComponent(poCode)+"/items",{headers:rtsHdr()});
+  var items=(pr.data&&pr.data.purchaseOrderItems)||[];
+  var done=items.filter(function(i){return i.inspectionStatus==="FULL_RECEIVED"||i.inspectionStatus==="PARTIAL_RECEIVED"});
+  var stat=items.map(function(i){return (RTS_STATUS_LABEL[i.inspectionStatus]||i.inspectionStatus)}).join(", ");
+  if(done.length)rlog("확정 확인 — 입하 처리된 상품 "+done.length+"건 (상태: "+stat+")","ok");
+  else rlog("확정이 반영되지 않았습니다 (현재 상태: "+stat+")","err");
+}
+
+function rtsCopyIds(){
+  var t=$("rtsLineIds");t.select();
+  try{document.execCommand("copy");rlog("이슈 라인 ID를 복사했습니다","ok")}catch(e){alert("복사 실패 — 직접 선택해 주세요")}
+}
+
+function rtsReset(){
+  if(!$("rtsPoCode"))return;
+  var e=getEnv();
+  $("rtsRmsId").value=e.rmsId;$("rtsRmsPw").value=e.rmsPw;
+  $("rtsRmsCard").classList.remove("show");
+  $("rtsPoCode").value="";$("rtsPoInfo").textContent="";
+  $("rtsItemArea").innerHTML="";$("rtsCondCard").style.display="none";
+  $("rtslog-area").style.display="none";$("rtslog-list").innerHTML="";
+  $("rtsResultCard").style.display="none";
+  rtsPoId=null;rtsItems=[];rtsSelected=[];rtsGroups=[];rtsDetails=[];rtsPicked=[];
+  $("rtsCodeArea").innerHTML='<div style="padding:10px 14px;font-size:12px;color:var(--text3)">로그인 후 로드</div>';
+  rtsSetConfirm(true);rtsSetAssign("one");
+  $("rtsRunBtn").disabled=true;$("rtsRunBtn").textContent="발주 불러오기 후 실행 가능";
 }
 </script>
 
