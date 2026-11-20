@@ -293,9 +293,13 @@ table.pgrid .del:hover{color:var(--red)}
   <!-- CAPA 증량 -->
   <div class="card" id="capaBoostCard" style="display:none">
     <div class="card-title">CAPA 증량 (기존 운영시간 수량 변경)</div>
-    <p class="hint" style="margin-bottom:10px">위 조회 조건의 입고지와 시작일을 기준으로 이미 등록된 운영시간을 불러옵니다. 운영시간을 새로 만드는 것이 아니라 그 날짜의 입고가능물량만 바꿉니다.</p>
-    <button class="btn btn-outline btn-full" onclick="loadOpTimes()" id="boostLoadBtn">운영시간 불러오기</button>
+    <p class="hint" style="margin-bottom:10px">위 조회 조건의 입고지(FC)·입고지상세·<b>시작일~종료일</b> 기준으로 이미 등록된 날짜별 수량을 불러옵니다. 칸에서 바로 고친 뒤 [변경한 행 적용]을 누르면 바꾼 날짜의 수량만 바뀝니다. 늘리는 것은 항상 되고, 이미 예약된 수량보다 작게 줄이는 것은 RMS가 막습니다.</p>
+    <button class="btn btn-outline btn-full" onclick="loadCapaGrid()" id="boostLoadBtn">기간 수량 불러오기</button>
     <div id="boostArea" style="margin-top:14px"></div>
+    <details style="margin-top:10px"><summary style="font-size:11px;color:var(--text3);cursor:pointer">요일별 기본 수량까지 바꾸기 (시작일 기준 · 삭제 후 재등록)</summary>
+      <button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="loadOpTimes()" id="boostLegacyBtn">운영시간 불러오기</button>
+      <div id="boostLegacyArea" style="margin-top:10px"></div>
+    </details>
   </div>
 
   <!-- CAPA 등록 -->
@@ -1159,7 +1163,7 @@ async function checkCapa(){var df=$("capaDateFrom").value,dt=$("capaDateTo").val
       else{html+='<div class="capa-item miss"><div class="capa-dot off"></div>'+label+' — CAPA 없음</div>';capaResults[gk]={fc:sel.fc,dock:sel.dock,date:date,exists:false}}})});
   $("capaResults").innerHTML=html;
   $("capaBoostCard").style.display=rmsToken?"block":"none";
-  $("boostArea").innerHTML="";
+  $("boostArea").innerHTML="";if($("boostLegacyArea"))$("boostLegacyArea").innerHTML="";
   var missing=Object.keys(capaResults).filter(function(k){return!capaResults[k].exists});
   if(missing.length>0&&rmsToken)renderCapaRegForms(missing);
   else if(missing.length>0)$("capaRegArea").innerHTML='<div class="card amber" style="text-align:center;color:var(--amber)">CAPA 등록이 필요합니다. RMS 로그인을 먼저 해주세요.</div>';
@@ -1222,18 +1226,139 @@ function capaXlsx(rows){
 }
 function exporterUrl(){return getEnv().rms.replace("inbound-api","inbound-exporter")}
 
+// ── 기간 수량 표 (날짜 × 운영시간) ──
+var capaGridRows=[];
+async function loadCapaGrid(){
+  if(!rmsToken){alert("RMS 로그인이 먼저 필요합니다");return}
+  var fc=$("capaFcFilter").value,df=$("capaDateFrom").value,dt=$("capaDateTo").value;
+  if(!fc){alert("위 조회 조건에서 입고지(FC)를 먼저 골라 주세요");return}
+  if(!df||!dt||dt<df){alert("조회 시작일·종료일을 확인해 주세요");return}
+  var btn=$("boostLoadBtn");btn.disabled=true;btn.textContent="불러오는 중...";
+  try{
+    var q="warehouseCode="+encodeURIComponent(fc)+"&startDate="+df+"&endDate="+dt;
+    var dock=$("capaDockFilter").value;
+    if(dock){var ar=rmsAreas.find(function(a){return a.code===dock});if(ar)q+="&inboundAreaId="+ar.id}
+    var rows=[],off=0;
+    while(true){
+      var r=await api(getEnv().rms+"/web/v1/inbound-operation-time/capacity/list?"+q+"&limit=300&offset="+off,{headers:{Authorization:"Bearer "+rmsToken}});
+      if(r.status===401){$("boostArea").innerHTML='<div style="font-size:12px;color:var(--red)">RMS 로그인이 만료되었습니다. 위에서 다시 로그인한 뒤 불러와 주세요.</div>';return}
+      if(r.status!==200){slog("수량 조회 실패: "+rmsErr(r),"err");return}
+      var l=(r.data&&r.data.list)||[];rows=rows.concat(l);
+      if(l.length<300||off>=3000)break;off+=300}
+    rows.sort(function(a,b){return (a.receivingExpectedDate+a.inboundAreaName+a.startTime+a.inboundOperationTimeCode).localeCompare(b.receivingExpectedDate+b.inboundAreaName+b.startTime+b.inboundOperationTimeCode)});
+    capaGridRows=rows.map(function(x){return {date:x.receivingExpectedDate,code:x.inboundOperationTimeCode,area:x.inboundAreaName,
+      time:x.startTime+"~"+x.endTime,rg:x.releaseGroup,pt:x.partyType,xd:x.xdockYn,sku:x.sku,unit:x.unit}});
+    renderCapaGrid();
+    slog("기간 수량 "+rows.length+"행 로드 ("+fc+(dock?"/"+dock:"")+", "+df+"~"+dt+")","ok");
+  }catch(e){slog("수량 불러오기 실패: "+e.message,"err")}
+  finally{btn.disabled=false;btn.textContent="기간 수량 불러오기"}
+}
+
+function renderCapaGrid(){
+  if(!capaGridRows.length){$("boostArea").innerHTML='<div style="font-size:12px;color:var(--red)">이 기간·입고지에 등록된 운영시간이 없습니다. CAPA 일괄 등록 영역에서 새로 만들어 주세요.</div>';return}
+  var td='style="padding:4px 6px;border-bottom:1px solid var(--border);white-space:nowrap"';
+  var inp='style="width:90px;padding:3px 5px;font-size:11px"';
+  var h='<div style="display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">'
+    +'<div class="field" style="min-width:90px"><label>SKU 일괄</label><input id="gridAllSku" type="number" min="0" placeholder="값"/></div>'
+    +'<div class="field" style="min-width:90px"><label>Unit 일괄</label><input id="gridAllUnit" type="number" min="0" placeholder="값"/></div>'
+    +'<button class="btn btn-sm btn-outline" style="height:34px" onclick="fillCapaGrid()">체크한 행에 채우기</button>'
+    +'<button class="btn btn-sm btn-amber" style="height:34px" id="gridApplyBtn" onclick="applyCapaGrid()">변경한 행 적용</button>'
+    +'<span id="gridChanged" style="font-size:11px;color:var(--text3)"></span></div>';
+  h+='<div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table style="border-collapse:collapse;font-size:11px;width:100%">'
+    +'<tr style="position:sticky;top:0;background:var(--bg2,var(--card,#111))"><th '+td+'><input type="checkbox" checked onchange="document.querySelectorAll(\'.gridChk\').forEach(function(c){c.checked=this.checked}.bind(this))"/></th>'
+    +'<th '+td+'>날짜</th><th '+td+'>입고지</th><th '+td+'>운영시간코드</th><th '+td+'>시간</th><th '+td+'>조건</th><th '+td+'>SKU</th><th '+td+'>Unit</th><th '+td+'>결과</th></tr>';
+  capaGridRows.forEach(function(x,i){
+    var dl=["일","월","화","수","목","금","토"][new Date(x.date+"T00:00:00").getDay()];
+    h+='<tr id="gridRow'+i+'"><td '+td+'><input type="checkbox" class="gridChk" value="'+i+'" checked/></td>'
+      +'<td '+td+'>'+x.date+'('+dl+')</td><td '+td+'>'+xmlEsc(x.area||"")+'</td><td '+td+'><b>'+xmlEsc(x.code)+'</b></td><td '+td+'>'+x.time+'</td>'
+      +'<td '+td+'>'+(x.rg==="PARCEL"?"택배":"차량")+' · '+x.pt+' · 대행 '+(x.xd?"Y":"N")+'</td>'
+      +'<td '+td+'><input '+inp+' type="number" min="0" id="gSku'+i+'" value="'+x.sku+'" oninput="markCapaGrid('+i+')"/></td>'
+      +'<td '+td+'><input '+inp+' type="number" min="0" id="gUnit'+i+'" value="'+x.unit+'" oninput="markCapaGrid('+i+')"/></td>'
+      +'<td '+td+' id="gRes'+i+'"></td></tr>';
+  });
+  h+='</table></div>';
+  $("boostArea").innerHTML=h;updateGridChanged();
+}
+function gridChangedIdx(){return capaGridRows.map(function(x,i){return i}).filter(function(i){
+  var x=capaGridRows[i];return String($("gSku"+i).value)!==String(x.sku)||String($("gUnit"+i).value)!==String(x.unit)})}
+function markCapaGrid(i){var x=capaGridRows[i];var ch=String($("gSku"+i).value)!==String(x.sku)||String($("gUnit"+i).value)!==String(x.unit);
+  $("gridRow"+i).style.background=ch?"var(--amber-dim,rgba(251,191,36,.12))":"";updateGridChanged()}
+function updateGridChanged(){var n=gridChangedIdx().length;if($("gridChanged"))$("gridChanged").textContent="변경 "+n+"행 / 전체 "+capaGridRows.length+"행"}
+function fillCapaGrid(){var s=$("gridAllSku").value,u=$("gridAllUnit").value;if(s===""&&u===""){alert("채울 값을 입력해 주세요");return}
+  document.querySelectorAll(".gridChk:checked").forEach(function(c){var i=Number(c.value);if(s!=="")$("gSku"+i).value=s;if(u!=="")$("gUnit"+i).value=u;markCapaGrid(i)})}
+
+async function applyCapaGrid(){
+  var idx=gridChangedIdx();if(!idx.length){alert("바꾼 행이 없습니다");return}
+  for(var t=0;t<idx.length;t++){var i=idx[t];var s=Number($("gSku"+i).value),u=Number($("gUnit"+i).value);
+    if(!Number.isInteger(s)||!Number.isInteger(u)||s<0||u<0||s>999999999||u>999999999){alert(capaGridRows[i].date+" "+capaGridRows[i].code+": 수량은 0 이상 999,999,999 이하 정수로 입력해 주세요");return}}
+  if(!confirm(idx.length+"행의 수량을 바꿉니다. 진행할까요?"))return;
+  var btn=$("gridApplyBtn");btn.disabled=true;btn.textContent="적용 중...";
+  var ok=0,fail=0;slog("기간 수량 적용: "+idx.length+"행","info");
+  for(var t=0;t<idx.length;t++){var i=idx[t],x=capaGridRows[i];var s=$("gSku"+i).value,u=$("gUnit"+i).value;
+    var res=$("gRes"+i);res.textContent="…";
+    var r=await uploadDailyQtyWithReason(x.code,x.date,s,u);
+    if(r.ok){ok++;x.sku=Number(s);x.unit=Number(u);res.innerHTML='<span style="color:var(--green)">✓</span>';markCapaGrid(i);
+      slog("  ✓ "+x.date+" "+x.code+" → SKU "+s+" / Unit "+u,"ok")}
+    else{fail++;res.innerHTML='<span style="color:var(--red)" title="'+xmlEsc(r.msg)+'">✗ '+xmlEsc(r.msg).substring(0,60)+'</span>';
+      slog("  ✗ "+x.date+" "+x.code+": "+r.msg,"err")}
+    await sleep(200)}
+  btn.disabled=false;btn.textContent="변경한 행 적용";
+  slog("적용 완료: 성공 "+ok+" / 실패 "+fail,fail?"err":"ok");
+  if(ok)checkCapaQuiet();
+}
+// 수량 수정 후 위 조회 결과만 조용히 새로 고친다 (증량 표는 유지)
+async function checkCapaQuiet(){var box=$("boostArea"),keep=Array.prototype.slice.call(box.childNodes);
+  try{await checkCapa()}finally{box.innerHTML="";keep.forEach(function(n){box.appendChild(n)})}}
+
+// 엑셀 업로드 + 실패 시 RMS 실패내역 파일에서 사유를 읽는다
+async function uploadDailyQtyWithReason(code,date,sku,unit){
+  var fd=new FormData();fd.append("multipartFile",capaXlsx([{code:code,date:date,sku:sku,unit:unit}]),"capa.xlsx");
+  var r=await fetch(exporterUrl()+"/api/v1/inbound-operation-time/capacity/upload",{method:"POST",headers:{Authorization:"Bearer "+rmsToken},body:fd});
+  var d={};try{d=await r.json()}catch(e){}
+  if(r.status===200&&d.successCnt>0)return {ok:true};
+  if(d.error)return {ok:false,msg:d.error};
+  if(d.historyId){try{var why=await readUploadFailReason(d.historyId);if(why)return {ok:false,msg:why}}catch(e){}}
+  if(d.failCnt>0)return {ok:false,msg:"반영 실패 (예약된 수량보다 작게 줄였을 수 있습니다)"};
+  return {ok:false,msg:r.status+" "+JSON.stringify(d).substring(0,100)};
+}
+async function readUploadFailReason(historyId){
+  var r=await fetch(exporterUrl()+"/web/v1/excel-upload/history/fails/"+historyId,{headers:{Authorization:"Bearer "+rmsToken}});
+  if(r.status!==200)return "";
+  var texts=await xlsxTexts(new Uint8Array(await r.arrayBuffer()));
+  // 머리줄·입력값을 빼고 문장으로 보이는 값만 남긴다
+  var msgs=texts.filter(function(t){return /[가-힣]/.test(t)&&/(습니다|없습니다|할 수|입력)/.test(t)});
+  return (msgs.length?msgs:texts.slice(-1)).filter(function(v,i,a){return a.indexOf(v)===i}).join(" / ");
+}
+// xlsx(zip) 안의 문자열을 꺼낸다 (브라우저 내장 deflate 해제 사용)
+async function xlsxTexts(buf){
+  var dv=new DataView(buf.buffer),eocd=-1;
+  for(var i=buf.length-22;i>=0;i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}}
+  if(eocd<0)return [];
+  var n=dv.getUint16(eocd+10,true),p=dv.getUint32(eocd+16,true),out=[],dec=new TextDecoder();
+  for(var k=0;k<n;k++){
+    var method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),nl=dv.getUint16(p+28,true),el=dv.getUint16(p+30,true),cl=dv.getUint16(p+32,true),lo=dv.getUint32(p+42,true);
+    var name=dec.decode(buf.subarray(p+46,p+46+nl));p+=46+nl+el+cl;
+    if(!/^xl\/(sharedStrings|worksheets\/sheet\d+)\.xml$/.test(name))continue;
+    var start=lo+30+dv.getUint16(lo+26,true)+dv.getUint16(lo+28,true),data=buf.subarray(start,start+csize),xml;
+    if(method===0)xml=dec.decode(data);
+    else{var ds=new DecompressionStream("deflate-raw");xml=await new Response(new Blob([data]).stream().pipeThrough(ds)).text()}
+    (xml.match(/<t[^>]*>[^<]*<\/t>/g)||[]).forEach(function(m){out.push(m.replace(/<[^>]+>/g,"").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&"))});
+  }
+  return out;
+}
+
 async function loadOpTimes(){
   if(!rmsToken){alert("RMS 로그인이 먼저 필요합니다");return}
   var fc=$("capaFcFilter").value,date=$("capaDateFrom").value;
   if(!fc){alert("위 조회 조건에서 입고지(FC)를 먼저 골라 주세요");return}
   if(!date){alert("조회 시작일을 먼저 입력해 주세요");return}
-  var btn=$("boostLoadBtn");btn.disabled=true;btn.textContent="불러오는 중...";
+  var btn=$("boostLegacyBtn");btn.disabled=true;btn.textContent="불러오는 중...";
   try{
     var ot=await api(getEnv().rms+"/web/v1/inbound-operation-time/operation-times?warehouse="+fc+"&operationDate="+date+"&limit=100&offset=0",{headers:{Authorization:"Bearer "+rmsToken}});
-    if(ot.status===401){slog("RMS 로그인이 만료되었습니다. 다시 로그인해 주세요.","err");$("boostArea").innerHTML='<div style="font-size:12px;color:var(--red)">RMS 로그인이 만료되었습니다. 위에서 다시 로그인한 뒤 불러와 주세요.</div>';return}
+    if(ot.status===401){slog("RMS 로그인이 만료되었습니다. 다시 로그인해 주세요.","err");$("boostLegacyArea").innerHTML='<div style="font-size:12px;color:var(--red)">RMS 로그인이 만료되었습니다. 위에서 다시 로그인한 뒤 불러와 주세요.</div>';return}
     if(ot.status!==200){slog("운영시간 조회 실패 ("+ot.status+"): "+JSON.stringify(ot.data).substring(0,120),"err");return}
     var list=(ot.data&&ot.data.inboundOperationTimes)||[];
-    var cap=await api(getEnv().rms+"/web/v1/inbound-operation-time/capacity/list?warehouse="+fc+"&startDate="+date+"&endDate="+date+"&limit=300&offset=0",{headers:{Authorization:"Bearer "+rmsToken}});
+    var cap=await api(getEnv().rms+"/web/v1/inbound-operation-time/capacity/list?warehouseCode="+fc+"&startDate="+date+"&endDate="+date+"&limit=300&offset=0",{headers:{Authorization:"Bearer "+rmsToken}});
     var qty={};((cap.data&&cap.data.list)||[]).forEach(function(c){qty[c.inboundOperationTimeCode]={sku:c.sku,unit:c.unit}});
 
     var dockFilter=$("capaDockFilter").value;
@@ -1242,7 +1367,7 @@ async function loadOpTimes(){
       if(ar)list=list.filter(function(o){return String(o.inboundAreaId)===String(ar.id)});
     }
     boostOpTimes=list;
-    if(!list.length){$("boostArea").innerHTML='<div style="font-size:12px;color:var(--red)">해당 조건에 등록된 운영시간이 없습니다. 아래 등록 영역에서 새로 만들어 주세요.</div>';return}
+    if(!list.length){$("boostLegacyArea").innerHTML='<div style="font-size:12px;color:var(--red)">해당 조건에 등록된 운영시간이 없습니다. CAPA 일괄 등록 영역에서 새로 만들어 주세요.</div>';return}
 
     var h='<div style="font-size:11px;color:var(--text3);margin-bottom:8px">'+date+' 기준 '+list.length+'건 — 바꿀 수량을 입력하고 적용하세요</div>';
     list.forEach(function(o,i){
@@ -1257,7 +1382,7 @@ async function loadOpTimes(){
         +'<button class="btn btn-outline" style="height:38px" onclick="boostByRecreate('+i+')">삭제 후 재등록</button>'
         +'</div></div>';
     });
-    $("boostArea").innerHTML=h;
+    $("boostLegacyArea").innerHTML=h;
     slog("운영시간 "+list.length+"건 로드","ok");
   }catch(e){slog("운영시간 불러오기 실패: "+e.message,"err")}
   finally{btn.disabled=false;btn.textContent="운영시간 불러오기"}
