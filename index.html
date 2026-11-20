@@ -231,7 +231,6 @@ table.pgrid .del:hover{color:var(--red)}
   <div class="tabs">
     <div class="tab active" data-page="capa" onclick="showPage('capa')">CAPA 관리</div>
     <div class="tab" data-page="order" onclick="showPage('order')">발주 V2</div>
-    <div class="tab" data-page="v1" onclick="showPage('v1')">발주 V1</div>
     <div class="tab" data-page="rts" onclick="showPage('rts')">회송/폐기 이슈</div>
     <div class="tab" data-page="goods" onclick="showPage('goods')">상품 등록</div>
   </div>
@@ -415,110 +414,6 @@ table.pgrid .del:hover{color:var(--red)}
   <div class="result-card" id="resultCard">
     <h3>✓ 전체 플로우 완료</h3>
     <dl class="result-kv" id="resultKv"></dl>
-  </div>
-</div>
-
-<!-- ═══════════ PAGE 3: 발주 V1 ═══════════ -->
-<div class="page" id="page-v1">
-
-  <div class="flow-bar">
-    <div class="flow-step active" id="v1fs1"><div class="dot">1</div>임직원 로그인</div><div class="flow-arrow">›</div>
-    <div class="flow-step" id="v1fs2"><div class="dot">2</div>발주그룹</div><div class="flow-arrow">›</div>
-    <div class="flow-step" id="v1fs3"><div class="dot">3</div>발주서 생성</div><div class="flow-arrow">›</div>
-    <div class="flow-step" id="v1fs4"><div class="dot">4</div>공급사 로그인</div><div class="flow-arrow">›</div>
-    <div class="flow-step" id="v1fs5"><div class="dot">5</div>발주확정</div>
-  </div>
-
-  <!-- V1 임직원 로그인 -->
-  <div class="card">
-    <div class="card-title"><span class="num">1</span>임직원 로그인</div>
-    <p class="hint" style="margin-bottom:10px">발주자의 이메일 정보를 입력해주세요.</p>
-    <div class="login-row">
-      <div class="field"><label>이메일</label><input id="v1empEmail" type="email" placeholder="seahui.jang@kurlycorp.com"/></div>
-      <button class="btn btn-primary" id="v1empLoginBtn" onclick="v1EmpLogin()">토큰 발급</button>
-    </div>
-    <div class="auth-card emp" id="v1empCard"><div class="avatar emp" id="v1empAvatar">?</div><div><p style="font-size:13px;color:var(--green);font-weight:500" id="v1empName">-</p><span style="font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace" id="v1empCode">-</span></div></div>
-  </div>
-
-  <!-- V1 상품 조회 -->
-  <div class="card">
-    <div class="card-title"><span class="num">2</span>상품 조회 & 선택</div>
-    <p class="hint" style="margin-bottom:10px">발주할 상품의 공급사명이나 상품명을 검색해주세요.</p>
-    <div class="grid2" style="margin-bottom:14px">
-      <div class="field"><label>상품 검색어</label><input id="v1searchWord" type="text" value="세희"/></div>
-      <div class="field"><label>공급사명</label><input id="v1searchSupplier" type="text" placeholder="공급사명"/></div>
-      <div class="field" style="justify-content:flex-end"><button class="btn btn-outline" onclick="v1SearchGoods()" id="v1searchBtn" disabled>상품 조회</button></div>
-    </div>
-    <div id="v1goodsListArea"></div>
-  </div>
-
-  <!-- V1 발주 설정 (상품 선택 후 표시) -->
-  <div class="card" id="v1optionsCard" style="display:none">
-    <div class="card-title"><span class="num">3</span>발주그룹 설정</div>
-    <p class="hint" style="margin-bottom:10px">발주 정보를 선택하여 입력해주세요. 선택된 입고지만 발주 처리됩니다.</p>
-    <div class="grid3" style="margin-bottom:14px">
-      <div class="field"><label>발주그룹명</label><input id="v1groupName" type="text" value="세희발주테스트"/></div>
-      <div class="field"><label>입고예정일</label><input id="v1recvDate" type="date"/><p class="hint">기본: 오늘 +1일</p></div>
-      <div class="field"><label>박스 수</label><input id="v1boxQnty" type="number" value="1" min="1"/></div>
-    </div>
-    <div style="font-size:11px;font-weight:700;color:var(--text3);letter-spacing:.06em;margin-bottom:10px">입고지 선택</div>
-    <div class="chip-grid" id="v1centerGrid"></div>
-    <div class="dock-section" id="v1dockSection">
-      <div class="dock-label">도크(하차장) 선택</div>
-      <div class="dock-rows" id="v1dockRows"><span style="font-size:12px;color:var(--text3)">로그인 후 로드</span></div>
-    </div>
-    <div class="grid3" style="margin-top:16px">
-      <div class="field">
-        <label>출고방법 (ReleaseProcess)</label>
-        <select id="v1releaseProcess" onchange="onV1RpChange()">
-          <option value="">상품 기본값 유지</option>
-          <option value="PARCEL">택배로 변경</option>
-        </select>
-        <div id="v1rpSummary" style="font-size:10px;color:var(--text3);margin-top:4px"></div>
-      </div>
-      <div class="field">
-        <label>경유센터 여부 (Waypoint)</label>
-        <select id="v1waypoint">
-          <option value="">상품 기본값 유지</option>
-          <option value="WAY1">경유 (WAY1)</option>
-          <option value="N">직납 (N)</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>재고 증량 여부</label>
-        <div style="display:flex;gap:8px;margin-top:2px">
-          <div class="chip active" id="v1skip-false" onclick="v1SetSkip(false)" style="flex:1;text-align:center">재고 적용</div>
-          <div class="chip" id="v1skip-true" onclick="v1SetSkip(true)" style="flex:1;text-align:center">재고 스킵</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- V1 공급사 로그인 (상품 선택 후 표시) -->
-  <div class="card" id="v1supLoginCard" style="display:none">
-    <div class="card-title"><span class="num">4</span>공급사 로그인</div>
-    <p class="hint" style="margin-bottom:10px">선택한 상품의 공급사 계정 정보를 입력해주세요. 해당 공급사의 발주 건만 확정 처리됩니다.</p>
-    <div style="margin-bottom:10px"><label style="font-size:11px;color:var(--text2);font-weight:500">저장된 공급사</label>
-      <select id="v1supSelect" onchange="onV1SupSelect()" style="margin-top:4px"><option value="">직접 입력</option></select>
-    </div>
-    <div class="login-row">
-      <div class="field"><label>ID</label><input id="v1supLoginId" type="text" value="vd5783.02"/></div>
-      <div class="field"><label>비밀번호</label><input id="v1supPassword" type="password" value="1234"/></div>
-      <button class="btn btn-outline" style="height:38px;flex-shrink:0" onclick="v1SupTestLogin()">로그인 테스트</button>
-    </div>
-    <div class="auth-card sup" id="v1supCard"><div class="avatar" style="background:var(--indigo-dim);border:1px solid var(--indigo);color:var(--indigo)">S</div><div><p style="font-size:13px;color:var(--indigo);font-weight:500" id="v1supCardName">-</p><span style="font-size:11px;color:var(--text3)" id="v1supCardId">-</span></div></div>
-  </div>
-
-  <button class="btn btn-primary btn-full btn-lg" id="v1runBtn" onclick="v1RunAll()" disabled>임직원 로그인 후 실행 가능</button>
-
-  <div class="log-area" id="v1log-area">
-    <div class="log-head"><span>V1 실행 로그</span><button class="log-clear" onclick="$('v1log-list').innerHTML=''">지우기</button></div>
-    <ul class="log-list" id="v1log-list"></ul>
-  </div>
-
-  <div class="result-card" id="v1resultCard">
-    <h3>✓ V1 전체 플로우 완료</h3>
-    <dl class="result-kv" id="v1resultKv"></dl>
   </div>
 </div>
 
@@ -780,14 +675,11 @@ function setEnv(name){
   $("empEmail").value=e.empEmail;$("rmsId").value=e.rmsId;$("rmsPw").value=e.rmsPw;
   // V2
   $("v2empEmail").value=e.empEmail;$("supLoginId").value=e.supId;$("supPassword").value=e.supPw;
-  // V1
-  $("v1empEmail").value=e.empEmail;$("v1supLoginId").value=e.supId;$("v1supPassword").value=e.supPw;
   // 토큰 초기화
-  empToken="";supToken="";rmsToken="";v2empToken="";v1empToken="";v1supToken="";
+  empToken="";supToken="";rmsToken="";v2empToken="";
   // UI 초기화 — 로그인 카드
   $("empCard").classList.remove("show");$("rmsCard").classList.remove("show");
   $("v2empCard").classList.remove("show");$("supCard").classList.remove("show");
-  $("v1empCard").classList.remove("show");$("v1supCard").classList.remove("show");
   // CAPA 영역 초기화
   $("capaQueryCard").style.display="none";
   if($("capaBoostCard")){$("capaBoostCard").style.display="none";$("boostArea").innerHTML=""}
@@ -810,33 +702,15 @@ function setEnv(name){
   if($("v2supSelect"))$("v2supSelect").value="";
   $("log-area").style.display="none";$("log-list").innerHTML="";
   $("resultCard").style.display="none";
-  // V1 입력 초기화
-  $("v1searchWord").value="";$("v1searchSupplier").value="";
-  $("v1groupName").value="세희발주테스트";$("v1recvDate").value=dateStr(1);$("v1boxQnty").value="1";
-  $("v1releaseProcess").value="";v1skipVal=false;
-  if($("v1skip-false"))$("v1skip-false").className="chip active";
-  if($("v1skip-true"))$("v1skip-true").className="chip";
-  $("v1goodsListArea").innerHTML="";
-  $("v1optionsCard").style.display="none";
-  $("v1supLoginCard").style.display="none";
-  $("v1runBtn").disabled=true;$("v1runBtn").textContent="임직원 로그인 후 실행 가능";
-  $("v1searchBtn").disabled=true;
-  if($("v1supSelect"))$("v1supSelect").value="";
-  $("v1log-area").style.display="none";if($("v1log-list"))$("v1log-list").innerHTML="";
-  $("v1resultCard").style.display="none";
   // 센터/도크 초기화
   selectedCenters=["WH02"];selectedDockByCenter={};
-  v1selectedCenters=["WH02","WH03","WH04","MCWH01","MCWH02"];v1selectedDockByCenter={};
-  docksByCenterRaw={};v1docksByCenterRaw={};
-  initCenters();v1InitCenters();
+  docksByCenterRaw={};
+  initCenters();
   $("dockSection").classList.remove("show");$("dockRows").innerHTML='<span style="font-size:12px;color:var(--text3)">로그인 후 로드</span>';
-  if($("v1dockSection"))$("v1dockSection").classList.remove("show");
-  if($("v1dockRows"))$("v1dockRows").innerHTML='<span style="font-size:12px;color:var(--text3)">로그인 후 로드</span>';
   // 데이터 초기화
   allGoodsData=[];allDetailData=[];selectedGoodsIdx=[];
-  v1AllGoods=[];v1AllDetail=[];v1SelectedIdx=[];
   // 플로우 상태 초기화
-  for(var i=1;i<=5;i++){var fs=$("fs"+i);if(fs)fs.className="flow-step"+(i===1?" active":"");var vfs=$("v1fs"+i);if(vfs)vfs.className="flow-step"+(i===1?" active":"");}
+  for(var i=1;i<=5;i++){var fs=$("fs"+i);if(fs)fs.className="flow-step"+(i===1?" active":"");}
   updateLoginStatus();refreshSupSelects();
   console.log("[setEnv] 초기화 완료");
   if(typeof rtsReset==="function")rtsReset();
@@ -892,24 +766,6 @@ function pickV2ExpirationDate(item,recv){
   }
   return {error:"상품에 판매가능일수가 없어 소비기한/제조일자를 정할 수 없습니다(파트너포털에서도 발주확정 불가)"};
 }
-// V1 발주확정: 소비기한 = 기준일자(추천일자와 직전입고 소비기한 중 늦은 날). 이보다 이르면 화면은 컬리 승인 요청으로 보낸다
-function pickV1ExpirationDate(item,recv){
-  var A=item.sellAvailableDate,D=item.sellDeadlineDate;
-  if(!isNum(A)||!isNum(D))return {error:"판매가능일수/판매마감일수가 없습니다"};
-  var std=recommendedDate(true,recv,item.availableDaysOfDistribution,Number(A),Number(D));
-  var last=item.latestReceivedExpirationDate&&String(item.latestReceivedExpirationDate).slice(0,10);
-  if(last&&last>std)std=last;
-  return {expirationDate:std};
-}
-function setFS(n,s){var el=$("fs"+n);if(el)el.className="flow-step "+s}
-async function api(url,o){o=o||{};var r=await fetch(url,{method:o.method||"GET",headers:Object.assign({"Content-Type":"application/json"},o.headers||{}),body:o.body?JSON.stringify(o.body):undefined});var t=await r.text();var d;try{d=JSON.parse(t)}catch(e){d={_raw:t}};return{status:r.status,data:d}}
-function empHeaders(t){return{"accept":"application/json","authorization":"Bearer "+t,"content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com","referer":"https://partner.stg.kurly.com/"}}
-function supHeaders(t){return{"accept":"application/json","authorization":t,"content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com","referer":"https://partner.stg.kurly.com/"}}
-function log(m,t){$("log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
-function slog(m,t){$("capa-log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("capa-log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
-function clearLog(){$("log-list").innerHTML="";$("resultCard").style.display="none"}
-function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1);v2CheckCapa()}
-
 // ═══════════ 공급사 계정 저장 (localStorage) ═══════════
 function getSupStorageKey(){return"sqe_suppliers_"+(currentEnv.startsWith("DEV")?"DEV":currentEnv)}
 function getSavedSuppliers(){try{return JSON.parse(localStorage.getItem(getSupStorageKey())||"[]")}catch(e){return[]}}
@@ -923,7 +779,7 @@ function saveSupplier(id,pw,name,supplierCode){
 }
 function refreshSupSelects(){
   var list=getSavedSuppliers();
-  ["v2supSelect","v1supSelect"].forEach(function(selId){
+  ["v2supSelect"].forEach(function(selId){
     var sel=$(selId);if(!sel)return;
     var cur=sel.value;
     sel.innerHTML='<option value="">직접 입력</option>';
@@ -948,21 +804,6 @@ async function onV2SupSelect(){
     log("✓ 공급사 자동 로그인: "+sc+" ("+sn+")","ok");updateLoginStatus();
   } else {log("공급사 로그인 실패: "+s.id,"err")}
 }
-async function onV1SupSelect(){
-  var sel=$("v1supSelect");var id=sel.value;if(!id)return;
-  var s=getSavedSuppliers().find(function(x){return x.id===id});
-  if(!s)return;
-  $("v1supLoginId").value=s.id;$("v1supPassword").value=s.pw;
-  // 자동 로그인
-  var r=await api(getEnv().escm+"/api/v2/user/login",{method:"POST",body:{loginId:s.id,password:s.pw}});
-  if(r.data.token){
-    v1supToken=r.data.token;
-    var jwt=decodeJWT(r.data.token)||{};
-    var sc=jwt.supplierCode||s.supplierCode||s.id;var sn=jwt.name||s.name||s.id;
-    $("v1supCardName").textContent=sc+" ("+sn+")";$("v1supCardId").textContent=s.id;$("v1supCard").classList.add("show");
-    v1log("✓ 공급사 자동 로그인: "+sc+" ("+sn+")","ok");updateLoginStatus();
-  } else {v1log("공급사 로그인 실패: "+s.id,"err")}
-}
 async function v2SupTestLogin(){
   var id=$("supLoginId").value,pw=$("supPassword").value;
   if(!id||!pw){alert("ID/비밀번호 입력");return}
@@ -977,21 +818,6 @@ async function v2SupTestLogin(){
     log("✓ 공급사 로그인 성공: "+supCode+" ("+supName+") — 저장됨","ok");updateLoginStatus();
   } else {alert("로그인 실패: "+JSON.stringify(r.data).substring(0,100))}
 }
-async function v1SupTestLogin(){
-  var id=$("v1supLoginId").value,pw=$("v1supPassword").value;
-  if(!id||!pw){alert("ID/비밀번호 입력");return}
-  var r=await api(getEnv().escm+"/api/v2/user/login",{method:"POST",body:{loginId:id,password:pw}});
-  if(r.data.token){
-    v1supToken=r.data.token;
-    var jwt=decodeJWT(r.data.token)||{};
-    var supCode=jwt.supplierCode||id;
-    var supName=jwt.name||id;
-    saveSupplier(id,pw,supName,supCode);
-    $("v1supCardName").textContent=supCode+" ("+supName+")";$("v1supCardId").textContent=id;$("v1supCard").classList.add("show");
-    v1log("✓ 공급사 로그인 성공: "+supCode+" ("+supName+") — 저장됨","ok");updateLoginStatus();
-  } else {alert("로그인 실패: "+JSON.stringify(r.data).substring(0,100))}
-}
-
 function populateCapaFcDockFilters(){
   // RMS warehouses + areas 기반 (전체 입고지)
   var whNames={};rmsWarehouses.forEach(function(w){whNames[w.code]=w.name});
@@ -1042,12 +868,12 @@ var RP_ALLOWED={
 };
 
 // 선택된 상품들의 출고방법 기준으로 셀렉트 옵션 활성/비활성화
-function updateRpOptions(selectId,goodsData,detailData,selectedIdx,isV1){
+function updateRpOptions(selectId,goodsData,detailData,selectedIdx){
   var sel=$(selectId);if(!sel)return;
   // 선택된 상품들의 기본 출고방법 수집
   var rpSet={};
   selectedIdx.forEach(function(i){
-    var rp=isV1?(detailData[i]&&(detailData[i].releaseCode||detailData[i].goodsReleaseCode)||""):(detailData[i]&&detailData[i].shippingProcess||goodsData[i]&&goodsData[i].shippingProcess||"");
+    var rp=detailData[i]&&detailData[i].shippingProcess||goodsData[i]&&goodsData[i].shippingProcess||"";
     if(rp)rpSet[rp]=true;
   });
   // 교집합: 모든 상품이 변경 가능한 옵션만
@@ -1074,7 +900,6 @@ function onV2RpChange(){
   else v2CheckCapa();
 }
 function onV2WaypointChange(){var rp=$("v2releaseProcess").value;if(rp==="PARCEL")v2CheckCapa("PARCEL");else v2CheckCapa()}
-function onV1RpChange(){/* V1은 CAPA 체크 없음 */}
 
 async function v2CheckCapa(shipFilter){
   var el=$("v2capaCheckResult");if(!el)return;
@@ -1115,7 +940,7 @@ async function v2CheckCapa(shipFilter){
     el.style.display="block";
   }
 }
-function updateLoginStatus(){var parts=[];if(empToken)parts.push('<span class="on">●</span> CAPA');if(v2empToken)parts.push('<span class="on">●</span> V2');if(v1empToken)parts.push('<span class="on">●</span> V1');if(rmsToken)parts.push('<span class="on">●</span> RMS');$("loginStatus").innerHTML=parts.join(" ")||"미로그인"}
+function updateLoginStatus(){var parts=[];if(empToken)parts.push('<span class="on">●</span> CAPA');if(v2empToken)parts.push('<span class="on">●</span> V2');if(rmsToken)parts.push('<span class="on">●</span> RMS');$("loginStatus").innerHTML=parts.join(" ")||"미로그인"}
 
 var TIME_POINTS=[];
 for(var h=0;h<24;h++)for(var m=0;m<60;m+=30)TIME_POINTS.push(String(h).padStart(2,"0")+":"+String(m).padStart(2,"0"));
@@ -1701,7 +1526,7 @@ async function searchGoods(){
     // 입고지 CAPA 사전 체크
     v2CheckCapa();
     // 출고방법 옵션 비활성화 + 기본값 요약
-    updateRpOptions("v2releaseProcess",allGoodsData,allDetailData,selectedGoodsIdx,false);
+    updateRpOptions("v2releaseProcess",allGoodsData,allDetailData,selectedGoodsIdx);
     var rpCount={};allDetailData.forEach(function(d,i){if(selectedGoodsIdx.indexOf(i)>-1){var rp=d.shippingProcess||allGoodsData[i].shippingProcess||"";rpCount[rp]=(rpCount[rp]||0)+1}});
     var rpSum=Object.keys(rpCount).map(function(k){return rpLabel(k)+' '+rpCount[k]+'건'}).join(', ');
     $("v2rpSummary").textContent="현재: "+rpSum;
@@ -1860,263 +1685,6 @@ async function runAll(){if(!v2empToken)return;
 document.addEventListener("DOMContentLoaded",function(){$("recvDate").value=dateStr(1);$("capaDateFrom").value=dateStr(1);$("capaDateTo").value=dateStr(1);$("empEmail").addEventListener("keydown",function(e){if(e.key==="Enter")doEmpLogin()})});
 initCenters();updateLoginStatus();refreshSupSelects();
 
-// ═══════════ 발주 V1 전체 로직 ═══════════
-var v1empToken="",v1empName="",v1empCode="",v1skipVal=false;
-var v1selectedCenters=["WH02","WH03","WH04","MCWH01","MCWH02"];
-var v1docksByCenterRaw={},v1selectedDockByCenter={};
-var V1_CENTER_TO_FIELD={"WH02":"goodsReceivings2cc","WH03":"goodsReceivings3cc","WH04":"goodsReceivings4cc","MCWH01":"goodsReceivings1mc","MCWH02":"goodsReceivings2mc"};
-
-function v1SetFS(n,s){var el=$("v1fs"+n);if(el)el.className="flow-step "+s}
-function v1log(m,t){$("v1log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("v1log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
-function v1SetSkip(v){v1skipVal=v;$("v1skip-false").className="chip"+(v?"":" active");$("v1skip-true").className="chip"+(v?" active":"")}
-
-function v1InitCenters(){
-  var g=$("v1centerGrid");g.innerHTML="";
-  FIXED_CENTERS.forEach(function(c){var ch=document.createElement("div");ch.className="chip"+(v1selectedCenters.indexOf(c.code)>-1?" active":"");ch.textContent=c.label+" ("+c.code+")";
-    ch.onclick=function(){var i=v1selectedCenters.indexOf(c.code);if(i>-1){if(v1selectedCenters.length===1)return;v1selectedCenters.splice(i,1);ch.classList.remove("active")}else{v1selectedCenters.push(c.code);ch.classList.add("active")}if($("v1dockSection").classList.contains("show"))v1RenderDocks()};g.appendChild(ch)})
-}
-function v1RenderDocks(){
-  var c=$("v1dockRows");c.innerHTML="";
-  v1selectedCenters.forEach(function(cc){var docks=v1docksByCenterRaw[cc]||[];var row=document.createElement("div");row.className="dock-row";row.id="v1dock-row-"+cc;
-    var lb=document.createElement("div");lb.className="dock-row-label";var info=FIXED_CENTERS.find(function(f){return f.code===cc});lb.textContent=info?info.label:cc;row.appendChild(lb);
-    var chips=document.createElement("div");chips.className="dock-chips";
-    var none=document.createElement("div");none.className="dock-chip default"+(!v1selectedDockByCenter[cc]?" active":"");none.textContent="상품 기본값";none.onclick=function(){v1SelectDock(cc,null)};chips.appendChild(none);
-    docks.forEach(function(d){var ch=document.createElement("div");ch.className="dock-chip"+(v1selectedDockByCenter[cc]===d.dockCode?" active":"");ch.textContent=(d.dockName||d.dockCode)+" · "+d.dockCode;ch.onclick=function(){v1SelectDock(cc,d.dockCode)};chips.appendChild(ch)});
-    row.appendChild(chips);c.appendChild(row)})
-}
-function v1SelectDock(cc,code){v1selectedDockByCenter[cc]=code;var row=$("v1dock-row-"+cc);if(!row)return;row.querySelectorAll(".dock-chip").forEach(function(c){var isNone=c.classList.contains("default");c.classList.toggle("active",isNone?(code===null):c.textContent.indexOf(code||"__NO__")>-1)})}
-
-async function v1EmpLogin(){
-  var email=$("v1empEmail").value.trim();if(!email){alert("이메일 입력");return}
-  var btn=$("v1empLoginBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>';
-  try{var res=await fetch(getEnv().admin+"/api-authorization/supervisor/v1/employee/fake-signin/email/"+encodeURIComponent(email),{method:"GET",headers:{"accept":"application/json"}});
-    var json=await res.json();if(!json.token)throw new Error("토큰 없음");
-    v1empToken=json.token;var p=decodeJWT(v1empToken);v1empName=(p&&p.name)||email;v1empCode=(p&&p.emplCode)||"";
-    $("v1empName").textContent=v1empName;$("v1empCode").textContent=v1empCode||email;$("v1empAvatar").textContent=v1empName.slice(-2);$("v1empCard").classList.add("show");
-    v1SetFS(1,"done");v1SetFS(2,"active");$("v1searchBtn").disabled=false;
-    btn.textContent="재발급";btn.disabled=false;
-    // 도크 로드
-    var ld=await fetch(getEnv().escm+"/api/v2/loadingdocks",{method:"GET",headers:empHeaders(v1empToken)});var ldJson=await ld.json();var list=ldJson.result||[];
-    v1docksByCenterRaw={};list.forEach(function(d){var cc=d.clusterCode||"";if(!cc)return;if(!v1docksByCenterRaw[cc])v1docksByCenterRaw[cc]=[];v1docksByCenterRaw[cc].push(d)});
-    $("v1dockSection").classList.add("show");v1RenderDocks();
-  }catch(e){alert("로그인 실패: "+e.message);btn.textContent="토큰 발급";btn.disabled=false}
-}
-
-var v1AllGoods=[],v1AllDetail=[],v1SelectedIdx=[];
-
-async function v1SearchGoods(){
-  if(!v1empToken){alert("임직원 로그인 필요");return}
-  var btn=$("v1searchBtn");btn.disabled=true;btn.textContent="조회 중...";
-  var word=$("v1searchWord").value.trim()||"세희";
-  var supName=$("v1searchSupplier").value.trim();
-  try{
-    var q="sort=REG_DESC&limit=200&currentPage=1&searchField=goodsName&searchWord="+encodeURIComponent(word)+"&onlyGoodsCode=false&supplierSearchField=supplierName&dateOptionType=REG&isFolded=false";
-    if(supName)q+="&supplierSearchWord="+encodeURIComponent(supName);
-    var pgRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-goods?"+q,{method:"GET",headers:empHeaders(v1empToken)});
-    var pgJson=await pgRes.json();v1AllGoods=pgJson&&pgJson.result&&pgJson.result.data||[];
-    if(!v1AllGoods.length){$("v1goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px">상품 없음</div>';return}
-
-    // 견적 조회
-    var ids=v1AllGoods.map(function(g){return Number(g.goodsId)});
-    var gpRes=await fetch(getEnv().escm+"/api/v3/goods/purchase?sort=REG_DESC&limit="+ids.length+"&currentPage=1&searchField=goodsName&onlyGoodsCode=false&supplierSearchField=supplierName&goodsCodes=&approvalStatus=ORDER&useStatus=Y&isFolded=false&dateType=REG&supplierDealYn=true&goodsIds="+encodeURIComponent(ids.join(",")),{method:"GET",headers:empHeaders(v1empToken)});
-    var gpJson=await gpRes.json();v1AllDetail=gpJson&&gpJson.result&&gpJson.result.data||[];
-
-    v1SelectedIdx=v1AllGoods.map(function(_,i){return i});
-    var html='<div style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>'+v1AllGoods.length+'건</strong> — 발주할 상품 선택</div>';
-    html+='<div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">';
-    // 헤더
-    html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);background:var(--surface2);position:sticky;top:0">';
-    html+='<span style="width:20px"><input type="checkbox" checked onchange="v1ToggleAll(this.checked)"/></span>';
-    html+='<span style="min-width:55px">상품ID</span>';
-    html+='<span style="min-width:80px">마스터코드</span>';
-    html+='<span style="flex:1">상품명</span>';
-    html+='<span style="min-width:60px">공급사코드</span>';
-    html+='<span style="min-width:70px">공급사명</span>';
-    html+='<span style="min-width:50px">출고방법</span>';
-    html+='<span style="min-width:70px">입고지상세</span>';
-    html+='</div>';
-    v1AllGoods.forEach(function(g,i){
-      var det=v1AllDetail[i]||{};
-      var rp=det.releaseCode||g.releaseCode||"";
-      var defDock="";
-      var rcField={"WH02":"goodsReceivings2cc","WH03":"goodsReceivings3cc","WH04":"goodsReceivings4cc","MCWH01":"goodsReceivings1mc","MCWH02":"goodsReceivings2mc"};
-      var firstCenter=v1selectedCenters[0]||"WH02";
-      var rcList=det[rcField[firstCenter]]||[];
-      if(rcList.length){var df=rcList.find(function(r){return r.defaultWarehouse})||rcList[0];defDock=df.dockCode||""}
-      html+='<label style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:11px;color:var(--text2);cursor:pointer;border-bottom:1px solid var(--border)">';
-      html+='<span style="width:20px"><input type="checkbox" class="v1goodsSel" data-idx="'+i+'" checked onchange="v1ToggleGoods('+i+',this.checked)"/></span>';
-      html+='<span style="min-width:55px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+g.goodsId+'</span>';
-      html+='<span style="min-width:80px;font-family:JetBrains Mono,monospace;color:var(--text3)">'+(g.goodsCode||g.masterCode||'')+'</span>';
-      html+='<span style="flex:1">'+g.goodsName+'</span>';
-      html+='<span style="color:var(--text3);min-width:60px">'+(g.supplierCode||'')+'</span>';
-      html+='<span style="color:var(--text3);min-width:70px">'+(g.supplierName||'')+'</span>';
-      html+='<span style="color:var(--text3);min-width:50px">'+rpLabel(rp)+'</span>';
-      html+='<span style="font-family:JetBrains Mono,monospace;color:var(--text3);min-width:70px">'+defDock+'</span>';
-      html+='</label>';
-    });
-    html+='</div>';
-    $("v1goodsListArea").innerHTML=html;
-    $("v1optionsCard").style.display="block";
-    $("v1supLoginCard").style.display="block";
-    $("v1runBtn").disabled=false;$("v1runBtn").textContent="선택한 "+v1SelectedIdx.length+"건 발주 실행";
-    // 출고방법 옵션 비활성화 + 기본값 요약
-    updateRpOptions("v1releaseProcess",v1AllGoods,v1AllDetail,v1SelectedIdx,true);
-    var rpCount={};v1AllDetail.forEach(function(d,i){if(v1SelectedIdx.indexOf(i)>-1){var rp=d.releaseCode||d.goodsReleaseCode||"";rpCount[rp]=(rpCount[rp]||0)+1}});
-    var rpSum=Object.keys(rpCount).map(function(k){return rpLabel(k)+' '+rpCount[k]+'건'}).join(', ');
-    if($("v1rpSummary"))$("v1rpSummary").textContent="현재: "+rpSum;
-  }catch(e){$("v1goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px">'+e.message+'</div>'}
-  finally{btn.disabled=false;btn.textContent="상품 조회"}
-}
-
-function v1ToggleAll(c){document.querySelectorAll(".v1goodsSel").forEach(function(cb){cb.checked=c;v1ToggleGoods(Number(cb.dataset.idx),c)})}
-function v1ToggleGoods(i,c){
-  if(c&&v1SelectedIdx.indexOf(i)<0)v1SelectedIdx.push(i);
-  if(!c)v1SelectedIdx=v1SelectedIdx.filter(function(x){return x!==i});
-  $("v1runBtn").textContent="선택한 "+v1SelectedIdx.length+"건 발주 실행";
-}
-
-async function v1RunAll(){
-  if(!v1empToken||!v1SelectedIdx.length){alert("상품을 선택하세요");return}
-  $("v1log-area").style.display="block";$("v1log-list").innerHTML="";$("v1resultCard").style.display="none";
-  var groupName=$("v1groupName").value.trim()||"세희발주테스트";
-  var boxQnty=parseInt($("v1boxQnty").value)||1;var supLoginId=$("v1supLoginId").value.trim();var supPassword=$("v1supPassword").value.trim();
-  var v1releaseProcess=$("v1releaseProcess").value;
-  var v1waypointOverride=$("v1waypoint").value; // ""이면 상품 기본값
-  var estDate=$("v1recvDate").value;var recvISO=estDate?estDate+"T00:00:00.000Z":dateStr(1)+"T00:00:00.000Z";var recvDisplay=estDate||dateStr(1);
-  if(!supLoginId||!supPassword){v1log("공급사 로그인 정보 필요","err");return}
-  var btn=$("v1runBtn");btn.disabled=true;btn.innerHTML='<span class="spinner"></span>실행 중...';
-  var todayStr=dateStr(0);var today=new Date();var todayDT=todayStr+"T"+String(today.getHours()).padStart(2,"0")+":"+String(today.getMinutes()).padStart(2,"0")+":00";
-
-  // 선택한 상품의 견적 데이터만 사용
-  var dataArr=v1SelectedIdx.map(function(i){return v1AllDetail[i]}).filter(Boolean);
-  if(!dataArr.length){v1log("선택한 상품의 견적 데이터 없음","err");btn.disabled=false;btn.textContent="전체 플로우 실행";return}
-
-  try{
-    v1SetFS(2,"active");v1log("[ 발주그룹 등록 ] 선택 상품 "+dataArr.length+"건","info");
-
-    v1log("① payload 조립 (센터: "+v1selectedCenters.join(", ")+")","info");
-    var items=[];
-    dataArr.forEach(function(g){var est=g.currentGoodsEstimate||{};var bpq=est.boxPerQnty||g.boxPerQnty||1;var totalQnty=boxQnty*bpq;
-      var wpMap={};(g.supplierGoodsByClusters||[]).forEach(function(c){wpMap[c.clusterCode]=c.wayPointCode||"N"});
-      var mdCode=(g.kurlyManagerMd&&g.kurlyManagerMd.employeeCode)||"";
-      v1selectedCenters.forEach(function(center){var field=V1_CENTER_TO_FIELD[center];var list=g[field]||[];
-        var def=null;for(var i=0;i<list.length;i++){if(list[i].defaultWarehouse){def=list[i];break}}if(!def)def=list[0]||{};
-        var wh=def.warehouse||"";var dock=(v1selectedDockByCenter[center]!=null)?v1selectedDockByCenter[center]:(def.dockCode||null);
-        items.push({supplierName:g.supplierName,goodsId:g.goodsId,goodsCode:g.goodsCode,goodsName:g.goodsName,supplierId:g.supplierId,
-          taxation:g.taxation||est.taxation||"TAXED",unit:g.unit||est.unit||"EA",boxQnty:String(boxQnty),totalQnty:totalQnty,receivingEstimateTotQnty:0,
-          receivingCenter:center,dockCode:dock,releaseAddress:"",releaseDetailAddress:"",remarks:g.remarks||"",skipApplyStock:v1skipVal,giftYn:false,
-          goodsEstimateViews:[{value:est.goodsEstimateId||0,text:"일반-"+(est.price||0)+"원",price:est.price||0,taxPrice:est.taxPrice||0,totalPrice:est.totalPrice||0,taxation:est.taxation||"TAXED",type:est.estimateType||"NORMAL"}],
-          receivings:[{goodsReceivingId:def.goodsReceivingId||0,goodsId:0,center:center,warehouse:wh,dockCode:dock,defaultWarehouse:true}],
-          goodsEstimates:[{goodsEstimateId:est.goodsEstimateId||0,estimateId:est.estimateId||0,goodsId:g.goodsId,goodsName:g.goodsName,goodsCode:g.goodsCode,
-            netWeight:est.netWeight||g.netWeight||1,grossWeight:est.grossWeight||g.grossWeight||1,unit:est.unit||g.unit||"EA",boxPerQnty:bpq,
-            taxation:est.taxation||"TAXED",estimateType:est.estimateType||"NORMAL",price:est.price||0,taxPrice:est.taxPrice||0,totalPrice:est.totalPrice||0,
-            approvalStatus:est.approvalStatus||"APPROVED",priceFromDate:est.priceFromDate||null,priceToDate:est.priceToDate||null}],
-          checkCo:true,checked:false,wayPointCode:v1waypointOverride||wpMap[center]||"N",shelfLifeType:g.shelfLifeType||"USE_DATE",
-          boxPerQnty:bpq,moq:g.moq||1,goodsReleaseCode:v1releaseProcess||g.releaseCode||"DIRECT_DELIVERY",releaseCode:v1releaseProcess||g.releaseCode||"DIRECT_DELIVERY",
-          mdEmployeeCode:mdCode,goodsEstimateId:est.goodsEstimateId||0,grossWeight:g.grossWeight||est.grossWeight||1,
-          deliveryType:g.deliveryType||"225",orderType:"NORMAL",stockSafeDate:g.stockSafeDate||0,
-          receivingEstimateDate:recvISO,normalGoodsEstimates:g.normalGoodsEstimates||[],eventGoodsEstimates:g.eventGoodsEstimates||[],
-          receivingWareHouseType:"",receivingWarehouse:wh,originReceivingWarehouse:wh,originDockCode:dock,
-          storageFrom:g.storageFrom||"00:00:00",sellingType:g.sellingType||"SALES_FIRST",poGoodsOrders:[],
-          estimateType:est.estimateType||"NORMAL",price:est.price||0,taxPrice:est.taxPrice||0,totalPrice:est.totalPrice||0,
-          poGoodsStock:{centerCd:null,d1Cnt:null,d2Cnt:null,d3Cnt:null,day7AvgCnt:null,day28AvgCnt:null,dcRatio:null,cmsStockDays:null,wmsDisposalQnty:null,cntDisposedDt:null,cntRunoutDt:null,sellAvailableDate:null,nextDayStock:null,currentStock:null,cmsGoodsPrice:null,promotionOrderAvgCnt:0,receivingInfoList:[],purchaseRate:"",totalStockDays:null},
-          averagePurchaseQuantity:g.averagePurchaseQuantity||null,expectedStockDay:null,mainCategoryCode:g.mainCategoryCode||null,promotionOrderAverage:0})})});
-
-    v1log("② 발주그룹 등록 ("+items.length+"건)...","info");
-    var postRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-group",{method:"POST",headers:empHeaders(v1empToken),body:JSON.stringify({purchaseGroupCode:"",purchaseGroupName:groupName,purchaseCenter:"ALL",purchaseCenterList:v1selectedCenters,orderType:"NORMAL",registrantEmployeeCode:v1empCode,registrantName:v1empName,merchandiserName:"",merchandiserNames:[],purchaseOrders:[],purchaseOrderRegisterItems:items,isReorder:false,approvalStatus:"TEMP"})});
-    var postJson=await postRes.json();if(!postRes.ok)throw new Error("등록 실패 "+postRes.status);
-    v1log("✓ 발주그룹 등록 완료","ok");v1SetFS(2,"done");
-
-    v1SetFS(3,"active");v1log("[ 발주서 생성 ]","info");
-    v1log("③ 발주그룹 조회...","info");await sleep(1500);
-    var grpRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-group?sort=REG_DESC&limit=50&currentPage=1&searchField=purchaseGroupName&searchWord="+encodeURIComponent(groupName)+"&onlyGoodsCode=false&supplierSearchField=supplierName&dateOptionType=REG&fromDate="+todayStr+"&toDate="+todayStr+"&dateFrom="+todayStr+"&dateTo="+todayStr,{method:"GET",headers:empHeaders(v1empToken)});
-    var grpJson=await grpRes.json();var rows=grpJson&&grpJson.result&&grpJson.result.data||[];
-    var target=rows.find(function(r){return r.purchaseGroupStatus==="AWAITING_PURCHASE"});
-    if(!target)throw new Error("AWAITING_PURCHASE 없음");
-    var pgId=target.purchaseGroupId,pgCode=target.purchaseGroupCode;
-    v1log("✓ 그룹 ID:"+pgId+" CODE:"+pgCode,"ok");
-
-    v1log("④ 발주서 일괄생성...","info");
-    var patchRes=await fetch(getEnv().admin+"/api-purchase/supervisor/v1/purchase-group-management/purchase-group/create-purchase-orders",{method:"PATCH",headers:empHeaders(v1empToken),body:JSON.stringify([pgId])});
-    if(!patchRes.ok)throw new Error("일괄생성 실패");v1log("✓ 완료","ok");await sleep(1500);
-
-    v1log("⑤ 발주서 조회...","info");
-    var poRes=await fetch(getEnv().escm+"/api/v2/purchaseorders?sort=PURCHASE_DESC&limit=50&currentPage=1&searchField=purchaseGroupCode&searchWord="+encodeURIComponent(pgCode)+"&onlyGoodsCode=false&supplierSearchField=supplierName&goodsCodes=&purchaseOrderCodes=&purchaseOrderGroupCodes=&dateType=PURCHASE_ORDER&isFolded=false&dateFrom="+todayStr+"T00%3A00%3A00&dateTo="+todayStr+"T23%3A59%3A59",{method:"GET",headers:empHeaders(v1empToken)});
-    var poJson=await poRes.json();var poRows=poJson&&poJson.result&&poJson.result.data||[];
-    var poIds=Array.from(new Set(poRows.map(function(r){return r.purchaseOrderId}).filter(Boolean)));
-    if(!poIds.length)throw new Error("발주서 없음");v1log("✓ "+poIds.length+"개","ok");v1SetFS(3,"done");
-
-    v1SetFS(4,"active");v1log("[ 공급사 로그인 ]","info");
-    var slRes=await fetch(getEnv().escm+"/api/v2/user/login",{method:"POST",headers:{"accept":"application/json","content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com"},body:JSON.stringify({loginId:supLoginId,password:supPassword})});
-    var slJson=await slRes.json();var v1supToken=slJson.token;if(!v1supToken)throw new Error("공급사 토큰 없음");
-    v1log("✓ 공급사 로그인 완료","ok");$("v1supCardName").textContent=slJson.name||supLoginId;$("v1supCardId").textContent=supLoginId;$("v1supCard").classList.add("show");v1SetFS(4,"done");
-
-    v1SetFS(5,"active");v1log("[ 발주확정 ] "+poIds.length+"건","info");
-    var okCnt=0,failCnt=0;
-    for(var i=0;i<poIds.length;i++){var poId=poIds[i];
-      try{var dRes=await fetch(getEnv().escm+"/api/v2/purchaseorders/"+poId,{method:"GET",headers:supHeaders(v1supToken)});
-        var dJson=await dRes.json();var body=dJson&&dJson.result;if(!body)throw new Error("result 없음");
-        // 소비기한 = 기준일자(화면에서 컬리 승인 없이 확정되는 가장 이른 날). 제조일자는 비운다(화면은 둘 중 하나만 넣는다)
-        var poRecv=String(body.receivingEstimateDate||recvDisplay).slice(0,10),v1Err=[];
-        var items=(body.purchaseOrderItemDTOList||[]).map(function(item){
-          var r=pickV1ExpirationDate(item,poRecv);
-          if(r.error){v1Err.push((item.goodsCode||item.purchaseOrderItemId)+": "+r.error);return item}
-          return Object.assign({},item,{expirationDate:r.expirationDate,manufactureDate:null,expirationAndManufactureDate:r.expirationDate});
-        });
-        if(v1Err.length)throw new Error("소비기한을 정할 수 없음 — "+v1Err.join(" / "));
-        body.purchaseOrderItemDTOList=items;
-        body.approvalStatus="APPROVED";body.requiredApprovalYn=false;body.modifyExpirationAndManufactureDateYn=true;
-        // 입고예정시간은 발주에 이미 있으면 그대로 두고, 없을 때만 기본값을 넣는다
-        if(!body.scheduledArrivalTime){body.scheduledArrivalTime="10:00 ~ 10:59";body.isChangedScheduledArrivalTime=true}
-        var putRes=await fetch(getEnv().escm+"/api/v2/purchaseorders",{method:"PUT",headers:supHeaders(v1supToken),body:JSON.stringify(body)});
-        if(!putRes.ok)throw new Error("PUT "+putRes.status);okCnt++;v1log("  ✓ ["+(i+1)+"/"+poIds.length+"] ID "+poId,"sub");
-      }catch(e2){failCnt++;v1log("  ✗ ID "+poId+" "+e2.message,"warn")}}
-    v1SetFS(5,"done");v1log("✓ 완료 — 성공 "+okCnt+" / 실패 "+failCnt,"ok");
-
-    var kv=$("v1resultKv");kv.innerHTML="";
-    [["등록자",v1empName],["그룹명",groupName],["그룹코드",pgCode],["입고예정일",recvDisplay],["발주서",poIds.length+"건"],["성공",okCnt+"건"],["실패",failCnt+"건"],["센터",v1selectedCenters.join(", ")]].forEach(function(p){kv.innerHTML+="<dt>"+p[0]+"</dt><dd>"+p[1]+"</dd>"});
-    $("v1resultCard").style.display="block";$("v1resultCard").scrollIntoView({behavior:"smooth"});
-  }catch(e){v1log("❌ "+e.message,"err")}finally{btn.disabled=false;btn.textContent="전체 플로우 실행"}
-}
-
-// V1 초기화
-v1InitCenters();v1SetSkip(false);
-document.addEventListener("DOMContentLoaded",function(){$("v1recvDate").value=dateStr(1)});
-// 거래명세서 병합 모달
-function showMergeModal(existingStatements,cIds){
-  return new Promise(function(resolve){
-    var ov=$("mergeOverlay"),list=$("mergeExistList"),confirmBtn=$("mergeConfirmBtn");
-    // 기존 거래명세서 목록을 체크박스로 표시
-    if(existingStatements.length){
-      var html="<table><tr><th></th><th>거래명세서 코드</th><th>상품 수</th><th>상태</th></tr>";
-      existingStatements.forEach(function(s,i){html+="<tr><td><input type='checkbox' class='merge-code-chk' value='"+s.code+"' id='mchk"+i+"'/></td><td><label for='mchk"+i+"'>"+s.code+"</label></td><td>"+(s.goodsCount||"-")+"</td><td>"+(s.status||"-")+"</td></tr>"});
-      html+="</table>";list.innerHTML=html;list.style.display="block";
-    }else{list.style.display="none"}
-    // 모드 전환 시 체크박스 활성/비활성
-    function updateChkState(){
-      var isMerge=$("mergeOptMerge").checked;
-      var chks=list.querySelectorAll(".merge-code-chk");
-      chks.forEach(function(c){c.disabled=!isMerge;if(!isMerge)c.checked=false});
-    }
-    $("mergeOptNew").onchange=updateChkState;
-    $("mergeOptMerge").onchange=function(){updateChkState();var chks=list.querySelectorAll(".merge-code-chk");if(chks.length===1)chks[0].checked=true};
-    // 기존 없으면 신규만 선택 가능
-    if(!existingStatements.length){$("mergeOptMerge").disabled=true;$("mergeOptNew").checked=true}else{$("mergeOptMerge").disabled=false}
-    $("mergeOptNew").checked=true;updateChkState();
-    confirmBtn.disabled=false;
-    ov.classList.add("show");
-    confirmBtn.onclick=function(){
-      if($("mergeOptMerge").checked){
-        var sel=[];list.querySelectorAll(".merge-code-chk:checked").forEach(function(c){sel.push(c.value)});
-        if(!sel.length){alert("병합할 거래명세서를 선택해주세요.");return}
-        ov.classList.remove("show");resolve({mode:"merge",codes:sel});
-      }else{
-        ov.classList.remove("show");resolve({mode:"new",codes:[]});
-      }
-    };
-    $("mergeCancelBtn").onclick=function(){ov.classList.remove("show");resolve(null)};
-  });
-}
 // ═══════════ 회송/폐기 이슈 데이터 생성 ═══════════
 var rtsType="CI",rtsAssign="one",rtsConfirm=true,rtsPoId=null,rtsItems=[],rtsSelected=[],rtsGroups=[],rtsDetails=[],rtsPicked=[];
 
