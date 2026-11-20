@@ -857,6 +857,50 @@ function $(id){return document.getElementById(id)}
 function decodeJWT(t){try{var b=t.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");return JSON.parse(decodeURIComponent(atob(b).split("").map(function(c){return"%"+("00"+c.charCodeAt(0).toString(16)).slice(-2)}).join("")))}catch(e){return null}}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
 function dateStr(off){var d=new Date();d.setDate(d.getDate()+off);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+// ═══════════ 소비기한/제조일자 규칙 (파트너포털 화면과 같은 계산) ═══════════
+// 날짜는 모두 'YYYY-MM-DD' 문자열로 다룬다
+function addDays(ymd,n){var d=new Date(String(ymd).slice(0,10)+"T00:00:00");d.setDate(d.getDate()+n);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function isNum(v){return v!==null&&v!==undefined&&v!==""&&!isNaN(Number(v))}
+// 입고기준율: 유통가능일수 1~60일 70%, 61~179일 60%, 180일 이상 50%
+function receivingStdRate(d){d=Number(d)||0;return d>0&&d<=60?0.7:d>60&&d<=179?0.6:d>179?0.5:0}
+// 추천일자 — 소비기한: 입고예정일+max(...)+판매마감일수 / 제조일자: 입고예정일-(판매가능일수-max(...))
+function recommendedDate(isUse,recv,availableDays,sellAvail,sellDead){
+  var m=Math.max(Math.ceil((Number(availableDays)||0)*receivingStdRate(availableDays))-sellDead,Math.ceil(sellAvail*0.3));
+  return isUse?addDays(recv,m+sellDead):addDays(recv,-(sellAvail-m));
+}
+// V2 발주확정에 넣을 날짜를 고른다: 화면에서 '발주확정 가능'이면서 '컬리 승인 불필요'인 가장 이른 날짜
+// item: 발주 상품(sellAvailableDate·sellDeadlineDate·availableDays·latestExpirationDate·latestManufactureDate·salesProcess)
+function pickV2ExpirationDate(item,recv){
+  var A=item.sellAvailableDate,D=item.sellDeadlineDate,storeFirst=item.salesProcess==="STORE_FIRST";
+  if(isNum(A)&&isNum(D)){
+    A=Number(A);D=Number(D);
+    var std=recommendedDate(true,recv,item.availableDays,A,D);
+    if(item.latestExpirationDate&&String(item.latestExpirationDate).slice(0,10)>std)std=String(item.latestExpirationDate).slice(0,10);
+    // 실판매가능일수 = 판매가능일수가 되는 날(입고예정일+판매마감일수+판매가능일수-1)부터 찾는다
+    for(var k=0;k<=400;k++){
+      var dt=addDays(recv,D+A-1+k);
+      if(storeFirst&&addDays(dt,-D)===recv)continue;       // 후판매: 센터판매마감일 = 입고예정일이면 확정 불가
+      if(k>0&&dt<std)continue;                              // 기준일자보다 이르면 컬리 승인 필요
+      return {useDate:dt,manufactureDate:null};
+    }
+  }
+  if(isNum(A)){
+    A=Number(A);
+    // 제조일자는 입고예정일보다 미래일 수 없다. 입고예정일 = 실판매가능일수 온전
+    if(storeFirst&&A===1)return {error:"후판매·판매가능일수 1일이라 확정 가능한 제조일자가 없습니다"};
+    return {useDate:null,manufactureDate:recv};
+  }
+  return {error:"상품에 판매가능일수가 없어 소비기한/제조일자를 정할 수 없습니다(파트너포털에서도 발주확정 불가)"};
+}
+// V1 발주확정: 소비기한 = 기준일자(추천일자와 직전입고 소비기한 중 늦은 날). 이보다 이르면 화면은 컬리 승인 요청으로 보낸다
+function pickV1ExpirationDate(item,recv){
+  var A=item.sellAvailableDate,D=item.sellDeadlineDate;
+  if(!isNum(A)||!isNum(D))return {error:"판매가능일수/판매마감일수가 없습니다"};
+  var std=recommendedDate(true,recv,item.availableDaysOfDistribution,Number(A),Number(D));
+  var last=item.latestReceivedExpirationDate&&String(item.latestReceivedExpirationDate).slice(0,10);
+  if(last&&last>std)std=last;
+  return {expirationDate:std};
+}
 function setFS(n,s){var el=$("fs"+n);if(el)el.className="flow-step "+s}
 async function api(url,o){o=o||{};var r=await fetch(url,{method:o.method||"GET",headers:Object.assign({"Content-Type":"application/json"},o.headers||{}),body:o.body?JSON.stringify(o.body):undefined});var t=await r.text();var d;try{d=JSON.parse(t)}catch(e){d={_raw:t}};return{status:r.status,data:d}}
 function empHeaders(t){return{"accept":"application/json","authorization":"Bearer "+t,"content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com","referer":"https://partner.stg.kurly.com/"}}
@@ -1728,7 +1772,7 @@ async function runAll(){if(!v2empToken)return;
     setFS(4,"active");log("[ 공급사 확정 ]","info");
     var sl=await api(escm+"/api/v2/user/login",{method:"POST",body:{loginId:supId,password:supPw}});if(!sl.data.token)throw new Error("공급사 토큰 없음");supToken=sl.data.token;
     $("supCardName").textContent=sl.data.name||supId;$("supCardId").textContent=supId;$("supCard").classList.add("show");updateLoginStatus();log("✓ 공급사 로그인","ok");
-    var cr=[];
+    var cr=[],exclExp=false;
     for(var _cr=0;_cr<5;_cr++){
       if(_cr>0)log("   CREATED 조회 재시도 "+_cr+"/4...","info");
       await sleep(_cr===0?2000:2500);
@@ -1739,14 +1783,25 @@ async function runAll(){if(!v2empToken)return;
         var _st=sd2.data&&sd2.data.data&&(sd2.data.data.totalElements||sd2.data.data.totalCount||sd2.data.data.total)||0;
         _smore=_sg.length===500&&gl.length<_st;_sp++;
       }
+      if(sd2.data&&sd2.data.data&&sd2.data.data.supplierExcludesExpiration!==undefined)exclExp=!!sd2.data.data.supplierExcludesExpiration;
       cr=gl.filter(function(i){return i.neoPurchaseOrderPlanGoodsStatus==="CREATED"});
       if(cr.length)break;
     }
     if(!cr.length)throw new Error("CREATED 없음 (5회 재시도 후에도 조회 실패)");
     var tr=await api(escm+"/api-purchase/v2/purchase-order-plan-goods/receiving-times?scheduledReceivingDate="+sDate,{headers:{Authorization:"Bearer "+supToken}});
     var rt=tr.data&&tr.data.data&&tr.data.data.receivingTime||{};var at=[];Object.keys(rt).forEach(function(fc){Object.keys(rt[fc]).forEach(function(dk){rt[fc][dk].forEach(function(t){at.push({fc:fc,dock:dk,id:t.rmsOperationTimeId,from:t.receivingTimeFrom,to:t.receivingTimeTo,wp:t.hasWaypoint,parcel:t.parcelYn})})})});
+    // 소비기한/제조일자: 상품별로 화면 규칙(발주확정 가능·컬리 승인 불필요)에 맞는 날짜를 고른다
+    var dateById={},dateErr=[];
+    cr.forEach(function(c){
+      if(exclExp){dateById[c.neoPurchaseOrderPlanGoodsId]={useDate:null,manufactureDate:null};return}
+      var r=pickV2ExpirationDate(c,c.scheduledReceivingDate||sDate);
+      if(r.error)dateErr.push(c.masterCode+" "+(c.goodsName||"")+": "+r.error);else dateById[c.neoPurchaseOrderPlanGoodsId]=r;
+    });
+    if(dateErr.length)throw new Error("소비기한/제조일자를 정할 수 없는 상품이 있습니다 — "+dateErr.join(" / "));
+    if(exclExp)log("   소비기한 미기재 공급사 — 소비기한/제조일자 없이 확정","info");
+    else cr.forEach(function(c){var r=dateById[c.neoPurchaseOrderPlanGoodsId];log("   "+c.masterCode+" "+(r.useDate?"소비기한 "+r.useDate:"제조일자 "+r.manufactureDate),"sub")});
     var ul=cr.map(function(c){var fc=c.fulfillmentCenter,dk=c.dock,wp=c.waypoint||"N";var mt=at.filter(function(t){return t.fc===fc&&t.dock===dk&&(wp==="Y"||wp==="WAY1"?t.wp:!t.wp)&&!t.parcel});var ti=mt[0]||at.find(function(t){return t.fc===fc&&t.dock===dk})||{id:0,from:"00:00",to:"23:59"};
-      return{neoPurchaseOrderPlanGoodsId:Number(c.neoPurchaseOrderPlanGoodsId),neoPurchaseOrderPlanGoodsCode:c.neoPurchaseOrderPlanGoodsCode,pallets:null,meatTraceNumber:null,supplierRemarks:null,quantity:qty,receivingTimeFrom:ti.from,receivingTimeTo:ti.to,rmsOperationTimeId:ti.id,shippingProcess:c.shippingProcess,shippingCategory:"A",manufactureDate:today,useDate:null,requiredApprovalDateYn:false,waypoint:wp,quantityChangeReason:null,version:c.version}});
+      return{neoPurchaseOrderPlanGoodsId:Number(c.neoPurchaseOrderPlanGoodsId),neoPurchaseOrderPlanGoodsCode:c.neoPurchaseOrderPlanGoodsCode,pallets:null,meatTraceNumber:null,supplierRemarks:null,quantity:qty,receivingTimeFrom:ti.from,receivingTimeTo:ti.to,rmsOperationTimeId:ti.id,shippingProcess:c.shippingProcess,shippingCategory:"A",manufactureDate:dateById[c.neoPurchaseOrderPlanGoodsId].manufactureDate,useDate:dateById[c.neoPurchaseOrderPlanGoodsId].useDate,requiredApprovalDateYn:false,waypoint:wp,quantityChangeReason:null,version:c.version}});
     var cfm=await api(escm+"/api-purchase/v2/purchase-order-plan-goods",{method:"PATCH",headers:{Authorization:"Bearer "+supToken},body:{updateGoodsList:ul,scheduledReceivingDate:sDate}});
     if(cfm.status!==200)throw new Error("확정 실패 "+cfm.status+": "+JSON.stringify(cfm.data).substring(0,300));log("✓ 확정 "+ul.length+"건","ok");setFS(4,"done");
     setFS(5,"active");log("[ 확정서 ]","info");await sleep(500);
@@ -2001,8 +2056,18 @@ async function v1RunAll(){
     for(var i=0;i<poIds.length;i++){var poId=poIds[i];
       try{var dRes=await fetch(getEnv().escm+"/api/v2/purchaseorders/"+poId,{method:"GET",headers:supHeaders(v1supToken)});
         var dJson=await dRes.json();var body=dJson&&dJson.result;if(!body)throw new Error("result 없음");
-        body.approvalStatus="APPROVED";body.scheduledArrivalTime="10:00 ~ 10:59";body.isChangedScheduledArrivalTime=true;body.modifyExpirationAndManufactureDateYn=true;
-        if(Array.isArray(body.purchaseOrderItemDTOList)){body.purchaseOrderItemDTOList=body.purchaseOrderItemDTOList.map(function(item){return Object.assign({},item,{manufactureDate:todayDT,expirationAndManufactureDate:todayDT})})}
+        // 소비기한 = 기준일자(화면에서 컬리 승인 없이 확정되는 가장 이른 날). 제조일자는 비운다(화면은 둘 중 하나만 넣는다)
+        var poRecv=String(body.receivingEstimateDate||recvDisplay).slice(0,10),v1Err=[];
+        var items=(body.purchaseOrderItemDTOList||[]).map(function(item){
+          var r=pickV1ExpirationDate(item,poRecv);
+          if(r.error){v1Err.push((item.goodsCode||item.purchaseOrderItemId)+": "+r.error);return item}
+          return Object.assign({},item,{expirationDate:r.expirationDate,manufactureDate:null,expirationAndManufactureDate:r.expirationDate});
+        });
+        if(v1Err.length)throw new Error("소비기한을 정할 수 없음 — "+v1Err.join(" / "));
+        body.purchaseOrderItemDTOList=items;
+        body.approvalStatus="APPROVED";body.requiredApprovalYn=false;body.modifyExpirationAndManufactureDateYn=true;
+        // 입고예정시간은 발주에 이미 있으면 그대로 두고, 없을 때만 기본값을 넣는다
+        if(!body.scheduledArrivalTime){body.scheduledArrivalTime="10:00 ~ 10:59";body.isChangedScheduledArrivalTime=true}
         var putRes=await fetch(getEnv().escm+"/api/v2/purchaseorders",{method:"PUT",headers:supHeaders(v1supToken),body:JSON.stringify(body)});
         if(!putRes.ok)throw new Error("PUT "+putRes.status);okCnt++;v1log("  ✓ ["+(i+1)+"/"+poIds.length+"] ID "+poId,"sub");
       }catch(e2){failCnt++;v1log("  ✗ ID "+poId+" "+e2.message,"warn")}}
@@ -2221,8 +2286,19 @@ function rtsHeaderBody(it,ctx){
   var b={purchaseOrderItemId:it.purchaseOrderItemId,inspectionQty:qty,goodsCode:it.goodsCode,
          exceedCenterSalesDeadlineDate:false,useByDateYn:slt==="USE_DATE"};
   if(slt==="EXPIRATION_DATE"||slt==="USE_DATE"){
-    b.expirationDate=(ctx&&(ctx.expirationDate||ctx.referenceExpirationDate))||it.expirationDate||dateStr(90);
-    b.manufactureDate=(ctx&&(ctx.manufactureDate||ctx.referenceManufactureDate))||it.manufactureDate||dateStr(0);
+    // 검수 날짜는 직전입고 일자(다음 발주의 기준일자)로 쓰인다. 발주에 적힌 날짜를 우선하고, 없으면 상품 기한으로 계산한다
+    // 소비기한 = 제조일자 + 판매가능일수 + 판매마감일수 - 1 (센터판매마감일 공식이 양쪽에서 같아지는 값)
+    var A=ctx&&ctx.sellAvailableDate,D=ctx&&ctx.sellDeadlineDate,span=isNum(A)&&isNum(D)?Number(A)+Number(D)-1:null;
+    var exp=(ctx&&ctx.expirationDate)||it.expirationDate||null;
+    var mfg=(ctx&&ctx.manufactureDate)||it.manufactureDate||null;
+    if(!exp&&mfg&&span!==null)exp=addDays(mfg,span);
+    if(!mfg&&exp&&span!==null)mfg=addDays(exp,-span);
+    if(!exp&&!mfg&&span!==null){mfg=dateStr(0);exp=addDays(mfg,span)}
+    if(!exp)exp=ctx&&ctx.referenceExpirationDate;
+    if(!mfg)mfg=ctx&&ctx.referenceManufactureDate;
+    if(!exp||!mfg)throw new Error("소비기한/제조일자를 정할 수 없습니다(발주·상품 기한 정보 없음)");
+    b.expirationDate=String(exp).slice(0,10);
+    b.manufactureDate=String(mfg).slice(0,10);
   }
   return b;
 }
