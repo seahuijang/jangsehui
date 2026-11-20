@@ -708,7 +708,7 @@ function setEnv(name){
   initCenters();
   $("dockSection").classList.remove("show");$("dockRows").innerHTML='<span style="font-size:12px;color:var(--text3)">로그인 후 로드</span>';
   // 데이터 초기화
-  allGoodsData=[];allDetailData=[];selectedGoodsIdx=[];
+  allGoodsData=[];allDetailData=[];selectedGoodsIdx=[];detailByGoods={};
   // 플로우 상태 초기화
   for(var i=1;i<=5;i++){var fs=$("fs"+i);if(fs)fs.className="flow-step"+(i===1?" active":"");}
   updateLoginStatus();refreshSupSelects();
@@ -1476,7 +1476,40 @@ async function regBulkCapa(){var sel=[];document.querySelectorAll(".capaSel:chec
   await checkCapa()}
 
 // ═══════════ 상품 조회 & 선택 ═══════════
-var allGoodsData=[],allDetailData=[],selectedGoodsIdx=[];
+var allGoodsData=[],allDetailData=[],selectedGoodsIdx=[],detailByGoods={};
+// 발주계획 등록 때 서버가 막는 조건을 조회 단계에서 미리 확인한다(선택 센터마다 입고 가능·입고지·입고예정일에 유효한 일반 견적서)
+function pickEstimate(d,recv){
+  var list=(d&&d.goodsEstimates)||[];
+  var ok=list.filter(function(e){return(!e.priceFromDate||e.priceFromDate<=recv)&&(!e.priceToDate||e.priceToDate>=recv)});
+  return ok.find(function(e){return e.estimateType==="NORMAL"})||ok[0]||null;
+}
+function orderBlockReason(goodsId,centers,recv){
+  var byCc=detailByGoods[goodsId]||{};
+  for(var k=0;k<centers.length;k++){
+    var cc=centers[k],d=byCc[cc];
+    if(!d)return cc+" 입고 불가(공급 센터 정보 없음 또는 입고여부 N)";
+    if(!d.receivingLocation||!d.receivingLocation.fulfillmentCenter)return cc+" 상세 입고지 정보 없음";
+    if(!pickEstimate(d,recv))return "입고예정일("+recv+")에 유효한 견적서 없음";
+  }
+  return "";
+}
+// 상세 조회는 견적서 없는 상품이 하나라도 있으면 전체가 실패하므로, 실패하면 상품별로 나눠 다시 조회한다
+async function fetchGoodsDetails(ids,centers){
+  var base=getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-available-goods/detail?clusterCenters="+centers.join(",")+"&goodsIds=";
+  var h={headers:{Authorization:"Bearer "+v2empToken}};
+  var r=await api(base+ids.join(","),h);
+  if(r.status===200)return{rows:r.data&&r.data.data||[],failed:{}};
+  var rows=[],failed={};
+  for(var i=0;i<ids.length;i+=10){
+    var part=ids.slice(i,i+10);
+    var rs=await Promise.all(part.map(function(id){return api(base+id,h)}));
+    rs.forEach(function(x,j){
+      if(x.status===200)rows=rows.concat(x.data&&x.data.data||[]);
+      else failed[part[j]]=(x.data&&(x.data.message||x.data.errorMessage))||("상세 조회 실패 "+x.status);
+    });
+  }
+  return{rows:rows,failed:failed};
+}
 
 async function searchGoods(){
   if(!v2empToken){alert("임직원 로그인 필요");return}
@@ -1490,14 +1523,30 @@ async function searchGoods(){
     allGoodsData=gr.data&&gr.data.data||[];
     if(!allGoodsData.length){$("goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px">상품 없음</div>';return}
 
-    // 상세 자동 조회
-    var ids=allGoodsData.map(function(g){return g.goodsId}).join(",");
-    var dr=await api(getEnv().admin+"/api-purchase/supervisor/v2/purchase-order-available-goods/detail?goodsIds="+ids+"&clusterCenters="+selectedCenters.join(","),{headers:{Authorization:"Bearer "+v2empToken}});
-    allDetailData=dr.data&&dr.data.data||[];
+    // 상세 자동 조회 → 발주 가능한 상품만 남김
+    var recv=$("recvDate").value||dateStr(1);
+    var fd=await fetchGoodsDetails(allGoodsData.map(function(g){return g.goodsId}),selectedCenters);
+    detailByGoods={};
+    fd.rows.forEach(function(d){(detailByGoods[d.goodsId]=detailByGoods[d.goodsId]||{})[d.clusterCenter]=d});
+    var blocked=[];
+    allGoodsData=allGoodsData.filter(function(g){
+      var why=fd.failed[g.goodsId]||orderBlockReason(g.goodsId,selectedCenters,recv);
+      if(why)blocked.push({g:g,why:why});
+      return !why;
+    });
+    // 상세는 상품 순서와 다르게 오므로 상품 ID로 짝을 맞춘다(첫 번째 선택 센터 기준)
+    allDetailData=allGoodsData.map(function(g){return(detailByGoods[g.goodsId]||{})[selectedCenters[0]]||{}});
+    var blockedHtml="";
+    if(blocked.length){
+      blockedHtml='<details style="font-size:11px;color:var(--text3);margin-bottom:8px"><summary style="cursor:pointer">발주 불가 '+blocked.length+'건 숨김 (센터 '+selectedCenters.join(", ")+' · 입고예정일 '+recv+' 기준 — 바꾸면 다시 조회하세요)</summary>';
+      blocked.forEach(function(b){blockedHtml+='<div style="padding:2px 0">'+(b.g.masterCode||b.g.goodsId)+' '+b.g.goodsName+' — '+b.why+'</div>'});
+      blockedHtml+='</details>';
+    }
+    if(!allGoodsData.length){$("goodsListArea").innerHTML='<div style="color:var(--red);font-size:12px;margin-bottom:8px">발주 가능한 상품 없음</div>'+blockedHtml;return}
 
     // 리스트 렌더
     selectedGoodsIdx=allGoodsData.map(function(_,i){return i});
-    var html='<div style="font-size:12px;color:var(--text2);margin-bottom:8px"><strong>'+allGoodsData.length+'건</strong> 조회됨 — 발주할 상품을 선택하세요</div>';
+    var html='<div style="font-size:12px;color:var(--text2);margin-bottom:8px">발주 가능 <strong>'+allGoodsData.length+'건</strong> 조회됨 — 발주할 상품을 선택하세요</div>'+blockedHtml;
     html+='<div style="max-height:340px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm)">';
     // 헤더
     html+='<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:10px;font-weight:700;color:var(--text3);border-bottom:2px solid var(--border2);background:var(--surface2);position:sticky;top:0">';
@@ -1568,7 +1617,7 @@ async function runAll(){if(!v2empToken)return;
   try{setFS(2,"active");
     log("[ 발주계획 ] 상품 "+gd.length+"건 / 센터 "+selFD.map(function(x){return x.cc+"("+x.fc+"/"+x.dock+")"}).join(", "),"info");
     // 발주계획 등록
-    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var d=dd[i]||{};var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:v2waypointOverride||d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:v2releaseProcess||d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].goodsEstimateId)||0),goodsEstimateType:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].estimateType)||"NORMAL",goodsEstimatePrice:Number((d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].price)||0),goodsEstimateTaxation:(d.goodsEstimates&&d.goodsEstimates[0]&&d.goodsEstimates[0].taxation)||"TAXED",kurlyRemarks:""})})});
+    log("① 발주계획 등록...","info");var items=[];gd.forEach(function(g,i){var qpu=Number(g.quantityPerUnit||1);selFD.forEach(function(f){var d=(detailByGoods[g.goodsId]||{})[f.cc]||dd[i]||{};var est=pickEstimate(d,sDate)||{};items.push({supplierCode:g.supplierCode||"",supplierName:g.supplierName||"",goodsId:Number(g.goodsId),masterCode:g.masterCode||"",goodsName:g.goodsName||"",scheduledReceivingDate:sDate,clusterCenter:f.cc,fulfillmentCenter:f.fc,dock:f.dock,waypoint:v2waypointOverride||d.waypoint||"N",purchaseOrderType:poType,giftYn:false,unit:g.unit||"EA",quantityPerUnit:qpu,quantity:qty,totalQuantity:qty*qpu,salesProcess:d.salesProcess||"SALES_FIRST",shippingProcess:v2releaseProcess||d.shippingProcess||g.shippingProcess||"DIRECT_DELIVERY",skipApplyStockYn:v2skipVal,goodsEstimateId:Number(est.goodsEstimateId||0),goodsEstimateType:est.estimateType||"NORMAL",goodsEstimatePrice:Number(est.price||0),goodsEstimateTaxation:est.taxationType||est.taxation||"TAXED",kurlyRemarks:""})})});
     var pr=await api(admin+"/api-purchase/supervisor/v2/purchase-order-plan-goods",{method:"POST",headers:{Authorization:"Bearer "+v2empToken},body:{neoPurchaseOrderPlanGoodsList:items}});
     if(pr.status!==200)throw new Error("등록 실패 "+pr.status+": "+JSON.stringify(pr.data).substring(0,200));log("✓ "+items.length+"건 등록","ok");
 
