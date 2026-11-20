@@ -766,6 +766,15 @@ function pickV2ExpirationDate(item,recv){
   }
   return {error:"상품에 판매가능일수가 없어 소비기한/제조일자를 정할 수 없습니다(파트너포털에서도 발주확정 불가)"};
 }
+function setFS(n,s){var el=$("fs"+n);if(el)el.className="flow-step "+s}
+async function api(url,o){o=o||{};var r=await fetch(url,{method:o.method||"GET",headers:Object.assign({"Content-Type":"application/json"},o.headers||{}),body:o.body?JSON.stringify(o.body):undefined});var t=await r.text();var d;try{d=JSON.parse(t)}catch(e){d={_raw:t}};return{status:r.status,data:d}}
+function empHeaders(t){return{"accept":"application/json","authorization":"Bearer "+t,"content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com","referer":"https://partner.stg.kurly.com/"}}
+function supHeaders(t){return{"accept":"application/json","authorization":t,"content-type":"application/json;charset=UTF-8","origin":"https://partner.stg.kurly.com","referer":"https://partner.stg.kurly.com/"}}
+function log(m,t){$("log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
+function slog(m,t){$("capa-log-area").style.display="block";var li=document.createElement("li");li.className=t||"info";li.textContent=m;$("capa-log-list").appendChild(li);li.scrollIntoView({behavior:"smooth",block:"end"})}
+function clearLog(){$("log-list").innerHTML="";$("resultCard").style.display="none"}
+function onPoType(){$("recvDate").value=$("poType").value==="EMERGENCY"?dateStr(0):dateStr(1);v2CheckCapa()}
+
 // ═══════════ 공급사 계정 저장 (localStorage) ═══════════
 function getSupStorageKey(){return"sqe_suppliers_"+(currentEnv.startsWith("DEV")?"DEV":currentEnv)}
 function getSavedSuppliers(){try{return JSON.parse(localStorage.getItem(getSupStorageKey())||"[]")}catch(e){return[]}}
@@ -1685,6 +1694,41 @@ async function runAll(){if(!v2empToken)return;
 document.addEventListener("DOMContentLoaded",function(){$("recvDate").value=dateStr(1);$("capaDateFrom").value=dateStr(1);$("capaDateTo").value=dateStr(1);$("empEmail").addEventListener("keydown",function(e){if(e.key==="Enter")doEmpLogin()})});
 initCenters();updateLoginStatus();refreshSupSelects();
 
+// 거래명세서 병합 모달
+function showMergeModal(existingStatements,cIds){
+  return new Promise(function(resolve){
+    var ov=$("mergeOverlay"),list=$("mergeExistList"),confirmBtn=$("mergeConfirmBtn");
+    // 기존 거래명세서 목록을 체크박스로 표시
+    if(existingStatements.length){
+      var html="<table><tr><th></th><th>거래명세서 코드</th><th>상품 수</th><th>상태</th></tr>";
+      existingStatements.forEach(function(s,i){html+="<tr><td><input type='checkbox' class='merge-code-chk' value='"+s.code+"' id='mchk"+i+"'/></td><td><label for='mchk"+i+"'>"+s.code+"</label></td><td>"+(s.goodsCount||"-")+"</td><td>"+(s.status||"-")+"</td></tr>"});
+      html+="</table>";list.innerHTML=html;list.style.display="block";
+    }else{list.style.display="none"}
+    // 모드 전환 시 체크박스 활성/비활성
+    function updateChkState(){
+      var isMerge=$("mergeOptMerge").checked;
+      var chks=list.querySelectorAll(".merge-code-chk");
+      chks.forEach(function(c){c.disabled=!isMerge;if(!isMerge)c.checked=false});
+    }
+    $("mergeOptNew").onchange=updateChkState;
+    $("mergeOptMerge").onchange=function(){updateChkState();var chks=list.querySelectorAll(".merge-code-chk");if(chks.length===1)chks[0].checked=true};
+    // 기존 없으면 신규만 선택 가능
+    if(!existingStatements.length){$("mergeOptMerge").disabled=true;$("mergeOptNew").checked=true}else{$("mergeOptMerge").disabled=false}
+    $("mergeOptNew").checked=true;updateChkState();
+    confirmBtn.disabled=false;
+    ov.classList.add("show");
+    confirmBtn.onclick=function(){
+      if($("mergeOptMerge").checked){
+        var sel=[];list.querySelectorAll(".merge-code-chk:checked").forEach(function(c){sel.push(c.value)});
+        if(!sel.length){alert("병합할 거래명세서를 선택해주세요.");return}
+        ov.classList.remove("show");resolve({mode:"merge",codes:sel});
+      }else{
+        ov.classList.remove("show");resolve({mode:"new",codes:[]});
+      }
+    };
+    $("mergeCancelBtn").onclick=function(){ov.classList.remove("show");resolve(null)};
+  });
+}
 // ═══════════ 회송/폐기 이슈 데이터 생성 ═══════════
 var rtsType="CI",rtsAssign="one",rtsConfirm=true,rtsPoId=null,rtsItems=[],rtsSelected=[],rtsGroups=[],rtsDetails=[],rtsPicked=[];
 
