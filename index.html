@@ -184,6 +184,43 @@ input[readonly]{opacity:.6}
 .merge-btns .btn-cancel{background:var(--surface2);color:var(--text2)}
 .merge-btns .btn-confirm{background:var(--primary);color:#fff}
 .merge-btns .btn-confirm:disabled{opacity:.4;cursor:not-allowed}
+
+/* 상품 등록 탭 */
+#page-goods .chk{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer}
+#page-goods .sub-title{font-size:11px;color:var(--text2);font-weight:500;margin-bottom:8px}
+#page-goods .mono{font-family:'JetBrains Mono',monospace}
+#page-goods .btn-red{background:transparent;color:var(--red);border:1px solid var(--red)}
+#page-goods .btn-xs{padding:4px 10px;font-size:11px;border-radius:6px}
+#page-goods .chip.sm{padding:5px 14px;font-size:12px}
+#page-goods input.bad{border-color:var(--red)}
+#page-goods .auth-card.sup{background:var(--indigo-dim);border:1px solid var(--indigo)}
+#page-goods .stg-note{font-size:11px;color:var(--amber);margin-bottom:14px}
+.gd-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.gd-head .t{font-size:11px;color:var(--text2);font-weight:500}
+.gd-head .sp{flex:1}
+.gd-mode{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:var(--surface2);color:var(--text3);border:1px solid var(--border2)}
+.gd-mode.manual{background:var(--primary-dim);color:var(--primary-light);border-color:var(--primary)}
+.gd-wrap{border:1px solid var(--border);border-radius:var(--radius-sm);max-height:340px;overflow:auto;outline:none}
+.gd-wrap:focus,.gd-wrap:focus-within{border-color:var(--primary)}
+table.pgrid{width:100%;border-collapse:collapse;font-size:12px}
+table.pgrid th{position:sticky;top:0;background:var(--surface2);color:var(--text2);font-weight:500;text-align:left;padding:7px 8px;z-index:1}
+table.pgrid td{border-top:1px solid var(--border);padding:0}
+table.pgrid td.no{color:var(--text3);font-family:'JetBrains Mono',monospace;text-align:right;padding:0 8px;width:36px}
+table.pgrid td.empty{padding:18px;color:var(--text3);text-align:center}
+#page-goods table.pgrid input,#page-goods table.pgrid select{width:100%;background:transparent;border:1px solid transparent;border-radius:0;color:var(--text);font-size:12px;padding:6px 8px;outline:none}
+#page-goods table.pgrid input:focus,#page-goods table.pgrid select:focus{border-color:var(--primary);background:var(--surface2)}
+table.pgrid td.c-code{width:150px} table.pgrid td.c-tax{width:90px} table.pgrid td.c-price{width:110px} table.pgrid td.c-del{width:30px;text-align:center}
+#page-goods table.pgrid tr.auto input,#page-goods table.pgrid tr.auto select{color:var(--text3)}
+#page-goods table.pgrid .bad{border-color:var(--red)!important;color:var(--red)!important}
+table.pgrid .del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px}
+table.pgrid .del:hover{color:var(--red)}
+#page-goods .btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+#gdResult.ok,#gdResult.err{display:block}
+#gdResult.err{background:var(--red-dim);border-color:var(--red)}
+#gdResult.err h3,#gdResult.err dd{color:var(--red)}
+.gd-bm{display:inline-block;padding:2px 10px;border:1px dashed var(--primary);border-radius:6px;color:var(--primary-light);text-decoration:none;font-weight:600;cursor:grab}
+#page-goods .hint a{color:var(--primary-light)}
+#gdLog li.sub{background:rgba(255,255,255,.02);border-color:var(--border);color:var(--text3);padding-left:24px}
 </style>
 </head>
 <body>
@@ -196,6 +233,7 @@ input[readonly]{opacity:.6}
     <div class="tab" data-page="order" onclick="showPage('order')">발주 V2</div>
     <div class="tab" data-page="v1" onclick="showPage('v1')">발주 V1</div>
     <div class="tab" data-page="rts" onclick="showPage('rts')">회송/폐기 이슈</div>
+    <div class="tab" data-page="goods" onclick="showPage('goods')">상품 등록</div>
   </div>
   <div class="top-right">
     <span class="login-status" id="loginStatus"></span>
@@ -586,6 +624,120 @@ input[readonly]{opacity:.6}
       <button class="btn btn-outline" style="margin-top:8px" onclick="rtsCopyIds()">ID 복사</button>
     </div>
   </div>
+</div>
+
+<!-- ═══════════ PAGE 5: 상품 등록 ═══════════ -->
+<div class="page" id="page-goods">
+  <p class="stg-note">STG 전용입니다. 위쪽 환경 선택과 관계없이 STG 컬리옵스·파트너포털에 등록합니다. 화면 조작 없이 API로만 처리합니다.</p>
+  <div class="flow-bar" id="gdFlow"></div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">1</span>공급사</div>
+    <div class="login-row">
+      <div class="field"><label>공급사 아이디</label><input type="text" id="gdSupId" value="VD5783.02"></div>
+      <div class="field"><label>공급사 비밀번호</label><input type="password" id="gdSupPw" value="1234"></div>
+      <button class="btn btn-outline" style="height:38px;flex-shrink:0" type="button" id="gdLookupBtn">조회</button>
+    </div>
+    <div class="auth-card sup" id="gdSupCard"><div class="avatar" style="background:var(--indigo-dim);border:1px solid var(--indigo);color:var(--indigo)">VD</div><div><p style="font-size:13px;color:var(--indigo);font-weight:500" id="gdSupName">-</p><span class="mono" style="font-size:11px;color:var(--text3)" id="gdSupSub">-</span></div></div>
+    <p class="hint" id="gdLookupMsg"></p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">2</span>컬리옵스 상품</div>
+    <p class="hint" style="margin-bottom:14px">컬리옵스 '상품 일괄 등록'·'공급 정보 일괄 등록' 엑셀을 브라우저에서 만들어 API로 올립니다. 분류·중량 등은 기준 상품(QA1113SH0001)과 같게, 바코드는 자동으로 넣습니다.</p>
+    <div class="grid3" style="margin-bottom:14px">
+      <div class="field"><label>개수 (1~100)</label><input type="number" min="1" max="100" id="gdCount" value="1"></div>
+      <div class="field"><label>시작 상품 코드 (12자, 끝 숫자부터 1씩 증가)</label><input type="text" class="mono" id="gdStart" maxlength="12"></div>
+      <div class="field"><label>상품명 앞부분</label><input type="text" id="gdPrefix" maxlength="28" placeholder="비우면 QA_대량_<월일>_"></div>
+    </div>
+    <div style="margin-bottom:6px">
+      <div class="gd-head">
+        <span class="t">등록할 상품 목록</span><span class="gd-mode" id="gdGridMode">자동</span><span class="sp"></span>
+        <button class="btn btn-outline btn-xs" type="button" id="gdGridAdd">+ 행 추가</button>
+        <button class="btn btn-red btn-xs" type="button" id="gdGridReset">자동 목록으로 되돌리기</button>
+      </div>
+      <div class="gd-wrap" id="gdGridWrap" tabindex="0">
+        <table class="pgrid"><thead><tr><th>#</th><th>상품코드</th><th>상품명</th><th>과세구분</th><th>공급가</th><th></th></tr></thead><tbody id="gdGridBody"></tbody></table>
+      </div>
+      <p class="hint" id="gdGridHint"></p>
+    </div>
+    <p class="hint" id="gdCountMsg" style="margin-bottom:14px"></p>
+    <div class="grid3" style="margin-bottom:14px">
+      <div class="field"><label>과세 구분 (기본)</label><select id="gdTax"><option>과세</option><option>면세</option><option>영세</option></select></div>
+      <div class="field"><label>보관 유형</label><select id="gdStorage"><option value="">기본(냉장)</option><option>냉장</option><option>냉동</option><option>상온</option></select></div>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>소비기한일수</label><input type="number" min="1" id="gdExp" value="10"></div>
+      <div class="field"><label>판매가능일수</label><input type="number" min="0" id="gdAvail" value="7"></div>
+      <div class="field"><label>판매마감일수</label><input type="number" min="0" id="gdDead" value="3"></div>
+    </div>
+    <p class="hint" id="gdDaysMsg">소비기한일수 = 판매가능일수 + 판매마감일수</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">3</span>상품 공급 정보</div>
+    <p class="hint" style="margin-bottom:14px">담당자는 조회한 공급사에 매핑된 사람 중에서 고릅니다. 고른 담당 MD 계정으로 견적을 승인합니다.</p>
+    <div class="grid3" style="margin-bottom:14px">
+      <div class="field"><label>담당 MD</label><select id="gdMd" disabled><option value="">공급사를 먼저 조회하세요</option></select></div>
+      <div class="field"><label>담당 AMD</label><select id="gdAmd" disabled><option value="">공급사를 먼저 조회하세요</option></select></div>
+      <div class="field"><label>발주 담당</label><select id="gdPo" disabled><option value="">공급사를 먼저 조회하세요</option></select></div>
+    </div>
+    <div class="grid4" style="margin-bottom:16px">
+      <div class="field"><label>출고 방법</label><select id="gdShip"><option>직배송</option><option>택배</option><option>컬리픽업</option><option>밀크런픽업</option><option>컬리+밀크런픽업</option><option>기타</option></select></div>
+      <div class="field"><label>리드타임 (일)</label><input type="number" id="gdLead" value="3"></div>
+      <div class="field"><label>최소 발주 수량</label><input type="number" id="gdMoq" value="10"></div>
+      <div class="field"><label>최대 생산 capa</label><input type="number" id="gdCapa" value="1000"></div>
+    </div>
+    <div class="sub-title">발주 가능 요일</div>
+    <div class="chip-grid" id="gd-orderDays" style="margin-bottom:14px"></div>
+    <div class="sub-title">납품 요일</div>
+    <div class="chip-grid" id="gd-deliveryDays"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">4</span>파트너포털 견적</div>
+    <div class="grid2">
+      <div class="field"><label>공급가 (VAT 제외, 기본)</label><input type="number" id="gdPrice" value="10000"></div>
+      <div class="field"><label>견적제안서명 (20자)</label><input type="text" id="gdProposal" maxlength="20" placeholder="비우면 자동"></div>
+    </div>
+    <p class="hint">일반 견적, 유효기간은 오늘 ~ 9999-오늘로 등록됩니다. 과세 상품은 세액 10%를 붙입니다.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">5</span>로그인 정보</div>
+    <div class="grid2" style="margin-bottom:10px">
+      <div class="field"><label>컬리옵스 로그인 토큰</label><input type="password" class="mono" id="gdOpsToken" placeholder="아래 방법으로 복사해 붙여 넣기" autocomplete="off"></div>
+      <div class="field"><label>담당 MD 파트너포털 이메일 (견적 승인)</label><input type="email" id="gdMdEmail" placeholder="담당 MD를 고르면 자동 입력"></div>
+    </div>
+    <p class="hint" id="gdTokenInfo"></p>
+    <div class="hint" style="line-height:1.8;margin-top:8px">
+      컬리옵스 로그인 API는 이 페이지 주소에서 부르는 것을 막아 두어서, 이미 로그인한 컬리옵스의 토큰을 씁니다(그쪽 로그인은 끊기지 않습니다).<br>
+      ① 이 버튼을 북마크바로 끌어다 놓기 → <a class="gd-bm" id="gdBookmarklet" href="#">컬리옵스 토큰 복사</a><br>
+      ② <a href="https://ops-center.stg.kurlycorp.kr" target="_blank" rel="noopener">STG 컬리옵스</a>에 로그인한 탭에서 북마크 누르기 → ③ 위 칸에 붙여 넣기(⌘V)<br>
+      토큰은 이 탭을 닫으면 지워집니다. 실행 중 '인증 만료(401)'가 나오면 다시 복사해 넣고 [멈춘 단계부터 이어서]를 누르세요.
+    </div>
+  </div>
+
+  <div class="card amber">
+    <div class="card-title"><span class="num">6</span>실행</div>
+    <div class="grid2" style="margin-bottom:14px">
+      <div class="field"><label>시작 단계</label><select id="gdFrom"></select></div>
+      <div class="field"><label>끝 단계</label><select id="gdTo"></select></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-lg" id="gdRunBtn" type="button">실행</button>
+      <button class="btn btn-outline" id="gdResumeBtn" type="button">멈춘 단계부터 이어서</button>
+      <button class="btn btn-red" id="gdStopBtn" type="button" disabled>중지</button>
+      <span class="hint" id="gdLastState" style="margin:0"></span>
+    </div>
+    <p class="hint" id="gdBlockMsg" style="color:var(--amber)"></p>
+  </div>
+
+  <div class="log-area" id="gdLogArea" style="display:none">
+    <div class="log-head"><span>실행 로그</span><button class="log-clear" type="button" id="gdLogClear">지우기</button></div>
+    <ul class="log-list" id="gdLog"></ul>
+  </div>
+  <div class="result-card" id="gdResult"><h3 id="gdResultTitle"></h3><dl class="result-kv" id="gdResultKv"></dl></div>
 </div>
 
 <script>
@@ -2063,5 +2215,6 @@ function rtsReset(){
 </div>
 </div>
 
+<script src="goods.js"></script>
 </body>
 </html>
